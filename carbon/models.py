@@ -116,7 +116,7 @@ class EmissionFactor(models.Model):
         verbose_name_plural = "Emisyon Faktörleri"
         ordering = ['-valid_from', 'category', 'name']
         permissions = [
-            ("can_manage_user_firm_access", "Karbon için kullanıcı ve firma ilişkisi kurabilir"),
+            #("can_manage_user_firm_access", "Karbon için kullanıcı ve firma ilişkisi kurabilir"),
             ("view_management_carbon", "Karbon Yönetim Görüntüleme Hakkı"),
         ]
 
