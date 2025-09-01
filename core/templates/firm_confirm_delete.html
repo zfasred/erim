@@ -1,0 +1,37 @@
+{% extends 'base.html' %}
+
+{% block title %}Firma Silme Onayı - Ekonaz Portal{% endblock %}
+
+{% block styles %}
+<style>
+    .confirmation-box { border: 1px solid #dc3545; padding: 20px; border-radius: 5px; max-width: 500px; background-color: white; }
+    .btn { display: inline-block; padding: 10px 15px; color: white; text-decoration: none; border-radius: 5px; border: none; cursor: pointer; }
+    .btn-danger { background-color: #dc3545; }
+    .btn-secondary { background-color: #6c757d; }
+</style>
+{% endblock %}
+
+{% block content %}
+    <div class="confirmation-box">
+        <h1>Silme Onayı</h1>
+        <hr>
+        {% if hard_delete %}
+            <h3 style="color:red;">DİKKAT: KALICI SİLME İŞLEMİ</h3>
+            <p><strong>"{{ firm.name }}"</strong> adlı firmayı ve ona ait TÜM verileri (personel, departman vb.) veritabanından **kalıcı olarak** silmek istediğinizden emin misiniz?</p>
+        {% else %}
+            <p><strong>"{{ firm.name }}"</strong> adlı firmayı silmek istediğinizden emin misiniz?</p>
+            <p>Bu işlem kaydı pasif hale getirecektir.</p>
+        {% endif %}
+
+        <form method="post">
+            {% csrf_token %}
+
+            {% if not hard_delete %}
+                {{ form.as_p }}
+            {% endif %}
+
+            <button type="submit" class="btn btn-danger">Evet, Sil</button>
+            <a href="{% url 'core:firm-list' %}" class="btn btn-secondary">İptal</a>
+        </form>
+    </div>
+{% endblock %}

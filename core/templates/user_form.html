@@ -1,0 +1,43 @@
+{% extends 'base.html' %}
+
+{% block title %}Kullanıcı Formu - Ekonaz Portal{% endblock %}
+
+{% block content %}
+    <h1>Kullanıcı Formu</h1>
+    <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        <div class="grid">
+        {% for field in form %}
+            <div>
+                <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                {{ field }}
+                {% if field.help_text %}
+                    <small>{{ field.help_text }}</small>
+                {% endif %}
+            </div>
+        {% endfor %}
+        </div>
+        <button type="submit">Kaydet</button>
+    </form>
+    <br>
+    <a href="{% url 'core:user-list' %}" role="button" class="secondary">Kullanıcı Listesine Geri Dön</a>
+    {% block scripts %}
+        {{ block.super }} <script>
+            $(document).ready(function() {
+                // İlgili tüm seçim kutularını Select2'ye dönüştür
+                $('#id_user_group').select2({
+                    placeholder: "Kullanıcı grubu seçin",
+                    allowClear: true
+                });
+                $('#id_language').select2({
+                    placeholder: "Dil seçin",
+                    allowClear: true
+                });
+                $('#id_logo_media').select2({
+                    placeholder: "Kullanıcı resmi seçin",
+                    allowClear: true
+                });
+            });
+        </script>
+    {% endblock %}
+{% endblock %}

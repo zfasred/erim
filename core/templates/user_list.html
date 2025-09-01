@@ -1,0 +1,46 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ list_title }} - Ekonaz Portal{% endblock %}
+
+{% block content %}
+    <h1>{{ list_title }}</h1>
+
+    <form method="get" action="{% url 'core:user-list' %}">
+        <input type="text" name="q" placeholder="Ad, TCKN, e-Posta..." value="{{ request.GET.q }}">
+        <button type="submit">Ara</button>
+    </form>
+
+    <a href="{% url 'core:user-add' %}" role="button" style="margin-top: 1rem;">Yeni Kullanıcı Ekle</a>
+
+    <figure>
+        <table>
+            <thead>
+                <tr>
+                    <th>Ad Soyad</th>
+                    <th>TC Kimlik No</th>
+                    <th>Grup</th>
+                    <th>Aktif Mi?</th>
+                    <th>İşlemler</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for user_obj in users %}
+                <tr>
+                    <td>{{ user_obj.first_name }} {{ user_obj.last_name }}</td>
+                    <td>{{ user_obj.tckno }}</td>
+                    <td>{{ user_obj.user_group.name }}</td>
+                    <td>{{ user_obj.active|yesno:"Evet,Hayır" }}</td>
+                    <td>
+                        <a href="{% url 'core:user-update' user_obj.pk %}">Düzenle</a>
+                        - <a href="{% url 'core:user-delete' user_obj.pk %}">Sil</a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="5">Kullanıcı bulunamadı.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </figure>
+{% endblock %}

@@ -1,0 +1,52 @@
+{% extends 'base.html' %}
+
+{% block title %}Karbon Yönetim - Ekonaz Portal{% endblock %}
+
+{% block content %}
+    <h1>Karbon Yönetim</h1>
+{% if perms.carbon.can_manage_user_firm_access %}
+    <!-- Permission check temporarily removed for diagnostics -->
+    <h2>Kullanıcı-Firma Erişim Yönetimi</h2>
+    <form method="post">
+        {% csrf_token %}
+        {{ user_firm_form.as_p }}
+        <button type="submit">Kaydet</button>
+    </form>
+    <hr>  <!-- Ayrım çizgisi -->
+{% endif %}
+    <p>Bu sayfadan emisyon faktörlerini ve katsayı türlerini yönetebilirsiniz.</p>
+
+    <a href="{% url 'carbon:emissionfactor-create' %}">Yeni Emisyon Faktörü Ekle</a>
+
+    <h3>Emisyon Faktörleri</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>Faktör Adı</th>
+                <th>Kategori</th>
+                <th>Değer</th>
+                <th>Birim</th>
+                <th>Geçerlilik Başlangıcı</th>
+                <th>Geçerlilik Bitişi</th>
+                <th>İşlemler</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for factor in factors %}
+                <tr>
+                    <td>{{ factor.name }}</td>
+                    <td>{{ factor.get_category_display }}</td>
+                    <td>{{ factor.value }}</td>
+                    <td>{{ factor.unit }}</td>
+                    <td>{{ factor.valid_from }}</td>
+                    <td>{{ factor.valid_to|default:"Süresiz" }}</td>
+                    <td>
+                        <a href="{% url 'carbon:emissionfactor-update' factor.pk %}">Düzenle</a> -
+                        <a href="{% url 'carbon:emissionfactor-delete' factor.pk %}">Sil</a>
+                    </td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+{% endblock %}

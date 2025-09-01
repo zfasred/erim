@@ -1,0 +1,64 @@
+{% extends 'base.html' %}
+
+{% block title %}Firma Formu - Ekonaz Portal{% endblock %}
+
+{% block styles %}
+    {{ block.super }} <style>
+        /* Bu forma özel stiller burada kalabilir */
+        form p { margin-bottom: 15px; }
+        form label { display: block; margin-bottom: 5px; font-weight: bold; }
+        form input, form select, form textarea { width: 300px; padding: 5px; }
+        button { padding: 10px 15px; background-color: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        .select2-container { width: 312px !important; }
+    </style>
+{% endblock %}
+
+{% block content %}
+    <h1>Firma Formu</h1>
+    <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+
+        <div class="grid"> {% for field in form %}
+            <div {% if field.name == 'address' %}class="grid-full-width"{% endif %}> <label for="{{ field.id_for_label }}">
+                    {{ field.label }}
+                </label>
+                {{ field }}
+                {% if field.help_text %}
+                    <small>{{ field.help_text }}</small>
+                {% endif %}
+                </div>
+        {% endfor %}
+        </div> <button type="submit">Kaydet</button>
+    </form>
+    <br>
+    <a href="{% url 'core:firm-list' %}">Firma Listesine Geri Dön</a>
+{% endblock %}
+
+{% block scripts %}
+    {{ block.super }} <script>
+        $("#id_city").change(function () {
+            const url = "{% url 'core:ajax_load_districts' %}";
+            const cityId = $(this).val();
+
+            $.ajax({
+                url: url,
+                data: { 'city_id': cityId },
+                success: function (data) {
+                    $("#id_district").html('<option value="">---------</option>');
+                    $.each(data, function (key, value) {
+                        $("#id_district").append('<option value="' + value.id + '">' + value.name + '</option>');
+                    });
+                }
+            });
+        });
+    </script>
+
+    <script>
+        $(document).ready(function() {
+            $('#id_nace').select2({
+                placeholder: "NACE kodu seçin veya yazarak arayın",
+                allowClear: true
+            });
+        });
+    </script>
+{% endblock %}

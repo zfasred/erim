@@ -1,0 +1,31 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ firm.name }} - Birim Listesi{% endblock %}
+
+{% block styles %}
+<style>
+    a { text-decoration: none; }
+    .add-new { display: inline-block; margin-bottom: 20px; padding: 10px 15px; background-color: #28a745; color: white; border-radius: 5px; }
+    ul { list-style-type: none; padding: 0; }
+    li { padding: 8px; border-bottom: 1px solid #ddd; }
+</style>
+{% endblock %}
+
+{% block content %}
+    <h1>{{ firm.name }} - Birim Listesi</h1>
+    <a href="{% url 'core:department-add' firm.pk %}" class="add-new">Yeni Birim Ekle</a>
+    <hr>
+    <ul>
+        {% for dept in departments %}
+            <li>
+                {{ dept.name }}
+                - <a href="{% url 'core:department-update' dept.pk %}">Düzenle</a>
+                - <a href="{% url 'core:department-delete' dept.pk %}">Sil</a>
+            </li>
+        {% empty %}
+            <li>Bu firmaya ait birim bulunmamaktadır.</li>
+        {% endfor %}
+    </ul>
+    <br>
+    <a href="{% url 'core:firm-list' %}">Firma Listesine Geri Dön</a>
+{% endblock %}

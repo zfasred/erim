@@ -1,0 +1,16 @@
+{% extends 'base.html' %}
+
+{% block title %}Karbon Rapor Oluşturma - Ekonaz Portal{% endblock %}
+
+{% block content %}
+    <h1>Karbon Rapor Oluşturma Formu</h1>
+
+    <form method="post">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button type="submit">Rapor Oluştur</button>
+    </form>
+    
+    <br>
+    <a href="{% url 'carbon:report-list' %}" role="button" class="secondary">Karbon Rapor Listesine Geri Dön</a>
+{% endblock %}

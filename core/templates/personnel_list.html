@@ -1,0 +1,60 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ list_title }} - Ekonaz Portal{% endblock %}
+
+{% block styles %}
+<style>
+    a { text-decoration: none; }
+    .header-actions a { display: inline-block; margin-bottom: 20px; padding: 10px 15px; color: white; text-decoration: none; border-radius: 5px; }
+    .add-new { background-color: #28a745; }
+    .toggle-view { background-color: #17a2b8; margin-left: 10px; }
+    ul { list-style-type: none; padding: 0; }
+    li { padding: 8px; border-bottom: 1px solid #ddd; display: flex; align-items: center; }
+    li img { margin-right: 15px; }
+</style>
+{% endblock %}
+
+{% block content %}
+    <h1>{{ list_title }}</h1>
+
+    <form method="get" action="{% url 'core:personnel-list' firm.pk %}">
+        <input type="text" name="q" placeholder="Ad, Soyad, TCKN..." value="{{ request.GET.q }}">
+        <button type="submit">Ara</button>
+    </form>
+    <div class="header-actions">
+        <a href="{% url 'core:personnel-add' firm.pk %}" class="add-new">Yeni Personel Ekle</a>
+        {% if is_showing_deleted %}
+            <a href="{% url 'core:personnel-list' firm.pk %}" class="toggle-view">Aktif Personelleri Göster</a>
+        {% else %}
+            <a href="{% url 'core:personnel-list' firm.pk %}?show_deleted=true" class="toggle-view">Silinmiş Personelleri Göster</a>
+        {% endif %}
+    </div>
+
+    <hr>
+    <ul>
+        {% for person in personnel_list %}
+            <li>
+                {% if person.picture %}
+                    <img src="{{ person.picture.url }}" alt="{{ person.name }}" width="50" height="50" style="border-radius: 50%;">
+                {% endif %}
+                {{ person.name }} {{ person.surname }} ({{ person.tckno }})
+                <div style="margin-left: auto;">
+                    {% if is_showing_deleted %}
+                        <a href="{% url 'core:personnel-update' person.pk %}">Gör / Geri Al</a>
+                    {% else %}
+                        <a href="{% url 'core:personnel-update' person.pk %}">Düzenle</a>
+                        - <a href="{% url 'core:personnel-delete' person.pk %}">Sil (Görünüşte)</a>
+                    {% endif %}
+
+                    {% if user.is_superuser %}
+                        - <a href="{% url 'core:personnel-delete-hard' person.pk %}" style="color:red;">Kalıcı Sil</a>
+                    {% endif %}
+                </div>
+            </li>
+        {% empty %}
+            <li>Bu listeye uygun personel bulunmamaktadır.</li>
+        {% endfor %}
+    </ul>
+    <br>
+    <a href="{% url 'core:firm-list' %}">Firma Listesine Geri Dön</a>
+{% endblock %}

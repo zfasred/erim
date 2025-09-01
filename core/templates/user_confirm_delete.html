@@ -1,0 +1,25 @@
+{% extends 'base.html' %}
+
+{% block title %}Kullanıcı Silme Onayı{% endblock %}
+
+{% block content %}
+    <div class="confirmation-box">
+        <h1>Silme Onayı</h1>
+        <p><strong>"{{ user_obj.name }}"</strong> adlı kullanıcıyı kalıcı olarak silmek istediğinizden emin misiniz?</p>
+        <form method="post">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-danger">Evet, Kalıcı Olarak Sil</button>
+            <a href="{% url 'core:user-list' %}" class="btn btn-secondary">İptal</a>
+        </form>
+    </div>
+{% endblock %}
+
+{% block styles %}
+    {{ block.super }}
+    <style>
+        .confirmation-box { border: 1px solid var(--pico-color-red-550); padding: 20px; border-radius: 5px; max-width: 500px; background-color: var(--pico-card-background-color); }
+        .btn { display: inline-block; padding: 10px 15px; color: white; text-decoration: none; border-radius: 5px; border: none; cursor: pointer; }
+        .btn-danger { background-color: var(--pico-color-red-550); }
+        .btn-secondary { background-color: var(--pico-color-gray-550); }
+    </style>
+{% endblock %}

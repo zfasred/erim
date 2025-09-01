@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+
+{% block title %}Personel Silme Onayı - Ekonaz Portal{% endblock %}
+
+{% block styles %}
+<style>
+    .confirmation-box { border: 1px solid #dc3545; padding: 20px; border-radius: 5px; max-width: 500px; background-color: white; }
+    .btn { display: inline-block; padding: 10px 15px; color: white; text-decoration: none; border-radius: 5px; border: none; cursor: pointer; }
+    .btn-danger { background-color: #dc3545; }
+    .btn-secondary { background-color: #6c757d; }
+</style>
+{% endblock %}
+
+{% block content %}
+    <div class="confirmation-box">
+        <h1>Silme Onayı</h1>
+        <hr>
+        {% if hard_delete %}
+            <h3 style="color:red;">DİKKAT: KALICI SİLME İŞLEMİ</h3>
+            <p><strong>"{{ personnel.name }} {{ personnel.surname }}"</strong> adlı personeli veritabanından **kalıcı olarak** silmek istediğinizden emin misiniz?</p>
+        {% else %}
+            <p><strong>"{{ personnel.name }} {{ personnel.surname }}"</strong> adlı personeli silmek istediğinizden emin misiniz?</p>
+        {% endif %}
+
+        <p>Bu işlem geri alınamaz.</p>
+        
+        <form method="post">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-danger">Evet, Sil</button>
+            <a href="{% url 'core:personnel-list' personnel.firm.pk %}" class="btn btn-secondary">İptal</a>
+        </form>
+    </div>
+{% endblock %}

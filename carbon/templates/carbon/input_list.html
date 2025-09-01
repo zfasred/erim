@@ -1,0 +1,57 @@
+{% extends 'base.html' %}
+
+{% block title %}Karbon Girdi Listesi - Ekonaz Portal{% endblock %}
+
+{% block content %}
+    <h1>Karbon Girdi Verileri</h1>
+
+    <form method="get">
+        <label for="firm_pk">Verilerini görmek istediğiniz firmayı seçin:</label>
+        <select name="firm_pk" onchange="this.form.submit()">
+            <option value="">---------</option>
+            {% for firm in user_firms %}
+                <option value="{{ firm.pk }}" {% if selected_firm.pk == firm.pk %}selected{% endif %}>{{ firm.name }}</option>
+            {% endfor %}
+        </select>
+    </form>
+
+    {% if selected_firm %}
+        <hr>
+        <h2>{{ selected_firm.name }} için Girdi Verileri</h2>
+        <a href="{% url 'carbon:inputdata-create' %}?firm_pk={{ selected_firm.pk }}" role="button">Yeni Girdi Ekle</a>
+
+        <figure style="margin-top: 1rem;">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Kategori</th>
+                        <th>Değer</th>
+                        <th>Birim</th>
+                        <th>Dönem Başlangıcı</th>
+                        <th>İşlemler</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for input in inputs %}
+                    <tr>
+                        <td>{{ input.category.name }}</td>
+                        <td>{{ input.value }}</td>
+                        <td>{{ input.unit }}</td>
+                        <td>{{ input.period_start }}</td>
+                        <td>
+                            <a href="{% url 'carbon:inputdata-update' input.pk %}">Düzenle</a> -
+                            <a href="{% url 'carbon:inputdata-delete' input.pk %}">Sil</a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5">Bu firma için henüz karbon girdi verisi bulunmamaktadır.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </figure>
+    {% else %}
+        <p style="margin-top: 2rem;">Lütfen verilerini görüntülemek için bir firma seçin.</p>
+    {% endif %}
+{% endblock %}

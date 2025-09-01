@@ -1,0 +1,27 @@
+{% extends 'base.html' %}
+
+{% block title %}Birim Silme Onayı - Ekonaz Portal{% endblock %}
+
+{% block styles %}
+<style>
+    .confirmation-box { border: 1px solid #dc3545; padding: 20px; border-radius: 5px; max-width: 500px; background-color: white; }
+    .btn { display: inline-block; padding: 10px 15px; color: white; text-decoration: none; border-radius: 5px; border: none; cursor: pointer; }
+    .btn-danger { background-color: #dc3545; }
+    .btn-secondary { background-color: #6c757d; }
+</style>
+{% endblock %}
+
+{% block content %}
+    <div class="confirmation-box">
+        <h1>Silme Onayı</h1>
+        <hr>
+        <p><strong>"{{ department.name }}"</strong> adlı birimi kalıcı olarak silmek istediğinizden emin misiniz?</p>
+        <p>Bu işlem geri alınamaz.</p>
+        
+        <form method="post">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-danger">Evet, Kalıcı Olarak Sil</button>
+            <a href="{% url 'core:department-list' department.firm.pk %}" class="btn btn-secondary">İptal</a>
+        </form>
+    </div>
+{% endblock %}

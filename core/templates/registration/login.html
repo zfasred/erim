@@ -1,0 +1,22 @@
+{% load static %} <!DOCTYPE html>
+<html>
+<head>
+    <title>Giriş Yap</title>
+    <link rel="stylesheet" type="text/css" href="{% static 'css/style.css' %}">
+</head>
+<body>
+    <div class="login-container">
+        <img src="{% static 'images/logo.png' %}" alt="Firma Logosu" class="logo">
+
+        <form method="post">
+            {% csrf_token %}
+            {{ form.as_p }}
+            <button type="submit">Giriş Yap</button>
+        </form>
+
+        {% if form.errors %}
+            <p style="color: red; margin-top: 15px;">Kullanıcı adı veya şifre hatalı.</p>
+        {% endif %}
+    </div>
+</body>
+</html>

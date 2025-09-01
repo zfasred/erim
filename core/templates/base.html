@@ -1,0 +1,108 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="tr" {% if 'admin' not in request.path %}data-theme="dark"{% endif %}>
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Ekonaz Portal{% endblock %}</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
+    {% block styles %}
+        <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    {% endblock %}
+    <style>
+        body, h1, h2, ul, p { margin: 0; padding: 0; }
+        body { font-family: sans-serif; display: flex; height: 100vh; background-color: #f4f7f6; }
+        .sidebar { width: 250px; background-color: #34495e; color: white; padding: 20px; flex-shrink: 0; display: flex; flex-direction: column; } /* flex özellikleri eklendi */
+        .sidebar h2 {
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 1.75em; /* Yazı tipini biraz büyütelim */
+            letter-spacing: 2px; /* Harf aralarını açalım */
+            text-transform: uppercase; /* Tüm harfleri büyük yapalım */
+            font-weight: 300; /* Yazı tipini biraz inceltelim */
+        }
+        .sidebar ul {
+            list-style-type: none;
+            padding: 0; /* Tarayıcı varsayılan boşluklarını sıfırlar */
+            margin: 0; /* Tarayıcı varsayılan boşluklarını sıfırlar */
+            display: flex; /* Flexbox düzenini aktif et */
+            flex-direction: column; /* Öğeleri dikey (sütun) olarak sırala */
+        }
+        .sidebar ul li a { display: block; color: white; text-decoration: none; padding: 15px; border-radius: 5px; transition: background-color 0.3s; }
+        .sidebar ul li a:hover { background-color: #4a6781; }
+        .sidebar .logout-menu { margin-top: auto; } /* Çıkış menüsünü en alta iter */
+        .main-content { flex-grow: 1; padding: 40px; overflow-y: auto; } /* flex özellikleri eklendi */
+        .main-content h1 {
+            margin-bottom: 30px;
+            color: #2c3e50; /* Rengi menüye yakın bir tona çekelim */
+            border-bottom: 1px solid #dfe4e8; /* Altına ince bir çizgi ekleyelim */
+            padding-bottom: 15px; /* Çizgi ile yazı arasına boşluk bırakalım */
+            font-weight: 300; /* Yazı tipini biraz inceltelim */
+        }
+        .main-content form p {
+            margin-bottom: 0.5rem;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1rem;
+        }
+        .grid-full-width {
+            grid-column: 1 / -1; /* Tam genişlik kaplamasını sağlar */
+        }
+    </style>
+</head>
+<body>
+
+    <nav class="sidebar">
+        <div> <h2>Ekonaz Portal</h2>
+        <ul>
+            <li><a href="{% url 'core:portal' %}">Ana Sayfa</a></li>
+            {% if perms.core.view_firm %}
+                <li><a href="{% url 'core:firm-list' %}">Firma Yönetimi</a></li>
+            {% endif %}
+            {% if perms.core.view_user %}
+                <li><a href="{% url 'core:user-list' %}">Kullanıcı Yönetimi</a></li>
+            {% endif %}
+            {% if perms.carbon.view_management_carbon %}
+                <li><a href="{% url 'carbon:management-list' %}">Karbon Yönetim</a></li>
+            {% endif %}
+            {% if perms.carbon.view_input_carbon %}
+                <li><a href="{% url 'carbon:input-list' %}">Karbon Girdi</a></li>
+            {% endif %}
+            {% if perms.carbon.view_report_carbon %}
+                <li><a href="{% url 'carbon:report-list' %}">Karbon Rapor</a></li>
+            {% endif %}
+        </ul>
+        </div>
+
+        <ul class="logout-menu">
+            <hr style="border-color: #4a6781;">
+
+            <li style="text-align: center; padding: 15px 0;">
+                {% if user.user and user.user.picture %}
+                    <img src="{{ user.user.picture.url }}" alt="{{ user.user.name }}" style="width: 60px; height: 60px; border-radius: 50%; margin-bottom: 10px; object-fit: cover;">
+                {% endif %}
+                <span style="display: block; font-weight: bold; padding: 0 15px;">{{ user.user.first_name|default:user.username }} {{ user.user.last_name }}</span>
+            </li>
+            <li>
+                <form id="logout-form" action="{% url 'core:logout' %}" method="post" style="margin: 0;">
+                    {% csrf_token %}
+                    <a href="#" onclick="document.getElementById('logout-form').submit(); return false;" style="display: block; color: white; text-decoration: none; padding: 15px; border-radius: 5px;">Çıkış Yap</a>
+                </form>
+            </li>
+        </ul>
+    </nav>
+
+    <main class="main-content">
+        {% block content %}{% endblock %}
+    </main>
+
+        {% block scripts %}
+            <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+            <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+        {% endblock %}
+
+</body>
+</html>

@@ -1,0 +1,75 @@
+{% extends 'base.html' %}
+
+{% block title %}Firma Listesi - Ekonaz Portal{% endblock %}
+
+{% block styles %}
+<style>
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+    th { background-color: #f2f2f2; }
+    .action-links a { margin-right: 10px; }
+    .header-actions a { display: inline-block; margin-bottom: 20px; padding: 10px 15px; color: white; text-decoration: none; border-radius: 5px; }
+    .add-new { background-color: #28a745; }
+    .toggle-view { background-color: #17a2b8; margin-left: 10px; }
+</style>
+{% endblock %}
+
+{% block content %}
+    <h1>{{ list_title }}</h1>
+    <form method="get" action="{% url 'core:firm-list' %}">
+        <input type="text" name="q" placeholder="Firma Adı, Şehir, Vergi No..." value="{{ request.GET.q }}">
+        <button type="submit">Ara</button>
+    </form>
+    <div class="header-actions">
+        <a href="{% url 'core:firm-add' %}" class="add-new">Yeni Firma Ekle</a>
+        {% if is_showing_deleted %}
+            <a href="{% url 'core:firm-list' %}" class="toggle-view">Aktif Firmaları Göster</a>
+        {% else %}
+            <a href="{% url 'core:firm-list' %}?show_deleted=true" class="toggle-view">Silinmiş Firmaları Göster</a>
+        {% endif %}
+    </div>
+
+    <figure><table>
+        <thead>
+            <tr>
+                <th>Logo</th>
+                <th>Firma Adı</th>
+                <th>Şehir</th>
+                <th>Telefon</th>
+                <th>İşlemler</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for firm in firms %}
+            <tr>
+                <td>
+                    {% if firm.logo_media %}
+                        <img src="{{ firm.logo_media.url }}" alt="{{ firm.name }}" width="50">
+                    {% endif %}
+                </td>
+                <td>{{ firm.name }}</td>
+                <td>{{ firm.city }}</td>
+                <td>{{ firm.telephone }}</td>
+                <td class="action-links">
+                    {% if is_showing_deleted %}
+                        <a href="{% url 'core:firm-update' firm.pk %}">Gör / Geri Al</a>
+                    {% else %}
+                        <a href="{% url 'core:firm-update' firm.pk %}">Düzenle</a>
+                        <a href="{% url 'core:firm-delete' firm.pk %}">Sil (Görünüşte)</a>
+                        <a href="{% url 'core:personnel-list' firm.pk %}">Personeller</a>
+                        <a href="{% url 'core:department-list' firm.pk %}">Birimler</a>
+                    {% endif %}
+
+                    {% if user.is_superuser %}
+                        <a href="{% url 'core:firm-delete-hard' firm.pk %}" style="color:red;">Kalıcı Sil</a>
+                    {% endif %}
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="5">Bu listeye uygun firma bulunmamaktadır.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table></figure>
+{% endblock %}
