@@ -1098,22 +1098,16 @@ def report_download_view(request, pk):
     messages.info(request, "İndirme özelliği henüz hazır değil.")
     return redirect('carbon:report-list')
 
-Haklısınız, önce sistemi çalışır hale getirelim. Hata mesajında input_list_view fonksiyonunun olmadığını söylüyor. GitHub'daki mevcut carbon/views.py dosyanızda bu fonksiyon farklı şekilde tanımlanmış olabilir.
-Hemen düzeltelim. carbon/views.py dosyanızın sonuna şu satırları ekleyin:
-python# carbon/views.py dosyanızın SONUNA ekleyin (eğer yoksa):
 
-import datetime
-
-# input_list_view fonksiyonu yok gibi görünüyor, ekleyelim:
 @login_required
 @permission_required('carbon.view_inputdata', raise_exception=True)
 def input_list_view(request):
+    """Input listesi görüntüleme"""
     # Kullanıcının firmasını bul
     if hasattr(request.user, 'user'):
         user_profile = request.user.user
         user_firms = Firm.objects.filter(userfirm__user=user_profile)
     else:
-        # Eğer user profile yoksa, doğrudan auth user kullan
         user_firms = Firm.objects.filter(userfirm__user=request.user)
     
     # Firma seçimi
