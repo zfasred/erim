@@ -1013,3 +1013,87 @@ def inputdata_delete_view(request, pk):
         return redirect('carbon:input-list')
     return render(request, 'carbon/inputdata_confirm_delete.html', {'input_data': input_data})
 
+@login_required
+def dashboard_view(request):
+    """Basit dashboard view"""
+    return render(request, 'carbon/dashboard.html', {})
+
+@login_required
+def download_template_view(request, scope):
+    """Excel şablon indirme - şimdilik boş"""
+    messages.info(request, "Bu özellik henüz hazır değil.")
+    return redirect('carbon:management-list')
+
+@login_required
+def bulk_upload_view(request):
+    """Toplu veri yükleme - şimdilik boş"""
+    messages.info(request, "Bu özellik henüz hazır değil.")
+    return redirect('carbon:management-list')
+
+# Diğer scope view'ları için boş fonksiyonlar
+@login_required
+def scope1_list_view(request):
+    return redirect('carbon:input-list')
+
+@login_required
+def scope1_create_view(request):
+    return redirect('carbon:input-list')
+
+@login_required
+def scope1_update_view(request, pk):
+    return redirect('carbon:input-list')
+
+@login_required
+def scope1_delete_view(request, pk):
+    return redirect('carbon:input-list')
+
+# Benzer şekilde scope2, scope3, scope4 için...
+@login_required
+def scope2_list_view(request):
+    return redirect('carbon:input-list')
+
+@login_required
+def scope2_create_view(request):
+    return redirect('carbon:input-list')
+
+@login_required
+def scope2_update_view(request, pk):
+    return redirect('carbon:input-list')
+
+@login_required
+def scope2_delete_view(request, pk):
+    return redirect('carbon:input-list')
+
+# Ve diğerleri...
+@login_required
+def fueltype_create_view(request):
+    return redirect('carbon:management-list')
+
+@login_required
+def fueltype_update_view(request, pk):
+    return redirect('carbon:management-list')
+
+@login_required
+def fueltype_delete_view(request, pk):
+    return redirect('carbon:management-list')
+
+# API view'ları
+@login_required
+def api_calculate_emission(request):
+    from django.http import JsonResponse
+    return JsonResponse({'status': 'not implemented'})
+
+@login_required
+def api_get_fuel_factors(request, fuel_id):
+    from django.http import JsonResponse
+    return JsonResponse({'status': 'not implemented'})
+
+@login_required
+def api_chart_data(request):
+    from django.http import JsonResponse
+    return JsonResponse({'status': 'not implemented'})
+
+@login_required
+def report_download_view(request, pk):
+    messages.info(request, "İndirme özelliği henüz hazır değil.")
+    return redirect('carbon:report-list')
