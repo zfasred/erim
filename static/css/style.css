@@ -1,0 +1,53 @@
+/* static/css/style.css */
+body, html {
+    height: 100%;
+    margin: 0;
+    font-family: Arial, Helvetica, sans-serif;
+    background-image: url("../images/arkaplan.jpg"); /* Arka plan resminizin adını buraya yazın */
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: cover;
+}
+
+.login-container {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 350px;
+    padding: 40px;
+    background: rgba(255, 255, 255, 0.9); /* Formun arkasındaki yarı saydam beyaz kutu */
+    box-shadow: 0 15px 25px rgba(0,0,0,.6);
+    border-radius: 10px;
+    text-align: center;
+}
+
+.login-container .logo {
+    width: 150px;
+    margin-bottom: 20px;
+}
+
+.login-container form p {
+    position: relative;
+    margin: 15px 0;
+}
+
+.login-container form input {
+    width: 100%;
+    padding: 10px 0;
+    font-size: 16px;
+    border: none;
+    border-bottom: 1px solid #333;
+    outline: none;
+    background: transparent;
+}
+
+.login-container button {
+    background-color: #007bff;
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    margin-top: 20px;
+}
