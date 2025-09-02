@@ -1,16 +1,14 @@
 {% extends 'base.html' %}
 
-{% block title %}Emisyon Faktörü Silme Onayı - Ekonaz Portal{% endblock %}
+{% block title %}Emisyon Faktörü Sil - Ekonaz Portal{% endblock %}
 
 {% block content %}
-    <div class="confirmation-box">
-        <h1>Silme Onayı</h1>
-        <hr>
-        <p><strong>"{{ factor.name }}"</strong> adlı emisyon faktörünü kalıcı olarak silmek istediğinizden emin misiniz?</p>
-        <form method="post">
-            {% csrf_token %}
-            <button type="submit" class="btn btn-danger">Evet, Sil</button>
-            <a href="{% url 'carbon:management-list' %}" class="btn btn-secondary">İptal</a>
-        </form>
-    </div>
+<h1>Emisyon Faktörü Sil</h1>
+<p>"{{ factor.name }}" emisyon faktörünü silmek istediğinizden emin misiniz?</p>
+
+<form method="post">
+    {% csrf_token %}
+    <button type="submit">Evet, Sil</button>
+    <a href="{% url 'carbon:management-list' %}" role="button" class="secondary">İptal</a>
+</form>
 {% endblock %}
