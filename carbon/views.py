@@ -24,6 +24,16 @@ from .forms import (
 )
 from core.models import UserFirm, Firm
 
+# Diğer view'larda da kullanmak için yardımcı fonksiyon
+def get_user_firms(request):
+    """Kullanıcının erişebileceği firmaları döndür"""
+    if request.user.is_superuser:
+        return Firm.objects.all()
+    elif hasattr(request.user, 'user'):
+        return Firm.objects.filter(user_associations__user=request.user.user)
+    else:
+        return Firm.objects.filter(user_associations__user=request.user)
+
 # Dashboard View
 @login_required
 @permission_required('carbon.view_management_carbon', raise_exception=True)
@@ -849,7 +859,7 @@ def scope4_delete_view(request, pk):
 def report_list_view(request):
     """Rapor listesi"""
     if hasattr(request.user, 'user'):
-        user_firms = Firm.objects.filter(userfirm__user=request.user.user)
+        user_firms = get_user_firms(request)
     else:
         user_firms = Firm.objects.none()
     
@@ -864,7 +874,7 @@ def report_list_view(request):
 def report_generate_view(request):
     """Rapor oluştur"""
     user_firms = Firm.objects.filter(
-        userfirm__user=request.user.user if hasattr(request.user, 'user') else request.user
+        user_firms = get_user_firms(request)
     )
     selected_firm = user_firms.first()
     
@@ -1103,14 +1113,18 @@ def report_download_view(request, pk):
 @permission_required('carbon.view_inputdata', raise_exception=True)
 def input_list_view(request):
     """Input listesi görüntüleme"""
-    # Kullanıcının firmasını bul
-    if hasattr(request.user, 'user'):
-        user_profile = request.user.user
-        # userfirm yerine user_associations kullanın:
-        user_firms = Firm.objects.filter(user_associations__user=user_profile)
+    
+    # Süper kullanıcı kontrolü
+    if request.user.is_superuser:
+        # Süper kullanıcı tüm firmaları görebilir
+        user_firms = Firm.objects.all()
     else:
-        # Eğer user profile yoksa, direkt olarak UserFirm modelini kullan
-        user_firms = Firm.objects.filter(user_associations__user=request.user)
+        # Normal kullanıcılar sadece ilişkili firmalarını görür
+        if hasattr(request.user, 'user'):
+            user_profile = request.user.user
+            user_firms = Firm.objects.filter(user_associations__user=user_profile)
+        else:
+            user_firms = Firm.objects.filter(user_associations__user=request.user)
     
     # Firma seçimi
     selected_firm_id = request.GET.get('firm_pk')
