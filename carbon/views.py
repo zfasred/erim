@@ -929,7 +929,7 @@ def report_generate_view(request):
             )
             return redirect('carbon:report-list')
     else:
-        form = ReportForm(initial={'report_date': datetime.date.today()})
+        form = ReportForm(initial={'report_date': timezone.now().today()})
     
     # ÖNEMLİ: GET request için mutlaka form'u render et
     return render(request, 'carbon/report_form.html', {'form': form})
