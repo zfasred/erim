@@ -878,7 +878,6 @@ def report_generate_view(request):
             
             # Kullanıcının firmasını bul
             if request.user.is_superuser:
-                # Süper kullanıcı için ilk firmayı al veya form'dan seç
                 firm = Firm.objects.first()
             elif hasattr(request.user, 'user'):
                 firm = Firm.objects.filter(user_associations__user=request.user.user).first()
@@ -887,9 +886,52 @@ def report_generate_view(request):
             
             if not firm:
                 raise PermissionDenied("No associated firm found.")
+            
+            # InputData'dan verileri al
+            inputs = InputData.objects.filter(firm=firm, period_end__lte=report_date)
+            
+            total_co2e = 0.0
+            direct_emissions = 0.0
+            indirect_emissions = 0.0
+            details = {}
+            
+            for input_data in inputs:
+                factor = EmissionFactor.objects.filter(
+                    Q(category=input_data.category.scope),
+                    Q(valid_from__lte=report_date),
+                    Q(valid_to__gte=report_date) | Q(valid_to__isnull=True)
+                ).order_by('-valid_from').first()
+                
+                if factor:
+                    co2e = input_data.value * factor.value
+                    total_co2e += co2e
+                    if input_data.category.scope in ['KAPSAM_1', 'KAPSAM_2']:
+                        direct_emissions += co2e
+                    else:
+                        indirect_emissions += co2e
+                    details[input_data.id] = {
+                        'input_value': input_data.value,
+                        'factor_value': factor.value,
+                        'calculated_co2e': co2e
+                    }
+            
+            direct_ratio = (direct_emissions / total_co2e * 100) if total_co2e > 0 else 0.0
+            indirect_ratio = (indirect_emissions / total_co2e * 100) if total_co2e > 0 else 0.0
+            
+            report = Report.objects.create(
+                firm=firm,
+                report_date=report_date,
+                total_co2e=total_co2e,
+                direct_ratio=direct_ratio,
+                indirect_ratio=indirect_ratio,
+                json_details=details,
+                generated_by=request.user.user if hasattr(request.user, 'user') else None
+            )
             return redirect('carbon:report-list')
     else:
         form = ReportForm(initial={'report_date': datetime.date.today()})
+    
+    # ÖNEMLİ: GET request için mutlaka form'u render et
     return render(request, 'carbon/report_form.html', {'form': form})
 
 @login_required
