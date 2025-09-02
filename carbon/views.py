@@ -42,7 +42,7 @@ def dashboard_view(request):
     context = {}
     
     # Kullanıcının firmasını al
-    user_firms = Firm.objects.filter(userfirm__user=request.user.user if hasattr(request.user, 'user') else request.user)
+    user_firms = Firm.objects.filter(user_associations__user=request.user.user if hasattr(request.user, 'user') else request.user)
     
     # Firma seçimi
     selected_firm_id = request.GET.get('firm_id')
@@ -246,7 +246,7 @@ def dashboard_view(request):
 def scope1_create_view(request):
     """Kapsam 1 veri girişi"""
     # Kullanıcının firmasını al
-    user_firms = Firm.objects.filter(userfirm__user=request.user.user if hasattr(request.user, 'user') else request.user)
+    user_firms = Firm.objects.filter(user_associations__user=request.user.user if hasattr(request.user, 'user') else request.user)
     selected_firm = user_firms.first()
     
     if not selected_firm:
@@ -277,7 +277,7 @@ def scope1_update_view(request, pk):
     scope1_data = get_object_or_404(Scope1Data, pk=pk)
     
     # Yetki kontrolü
-    user_firms = Firm.objects.filter(userfirm__user=request.user.user if hasattr(request.user, 'user') else request.user)
+    user_firms = Firm.objects.filter(user_associations__user=request.user.user if hasattr(request.user, 'user') else request.user)
     if scope1_data.firm not in user_firms:
         raise PermissionDenied
     
@@ -301,7 +301,7 @@ def scope1_update_view(request, pk):
 @permission_required('carbon.add_scope2data', raise_exception=True)
 def scope2_create_view(request):
     """Kapsam 2 veri girişi"""
-    user_firms = Firm.objects.filter(userfirm__user=request.user.user if hasattr(request.user, 'user') else request.user)
+    user_firms = Firm.objects.filter(user_associations__user=request.user.user if hasattr(request.user, 'user') else request.user)
     selected_firm = user_firms.first()
     
     if not selected_firm:
@@ -523,7 +523,7 @@ def fueltype_delete_view(request, pk):
 def scope1_list_view(request):
     """Kapsam 1 verilerini listele"""
     user_firms = Firm.objects.filter(
-        userfirm__user=request.user.user if hasattr(request.user, 'user') else request.user
+        user_associations__user=request.user.user if hasattr(request.user, 'user') else request.user
     )
     
     selected_firm_id = request.GET.get('firm_id')
@@ -551,7 +551,7 @@ def scope1_delete_view(request, pk):
     
     # Yetki kontrolü
     user_firms = Firm.objects.filter(
-        userfirm__user=request.user.user if hasattr(request.user, 'user') else request.user
+        user_associations__user=request.user.user if hasattr(request.user, 'user') else request.user
     )
     if scope1_data.firm not in user_firms:
         raise PermissionDenied
@@ -571,7 +571,7 @@ def scope1_delete_view(request, pk):
 def scope2_list_view(request):
     """Kapsam 2 verilerini listele"""
     user_firms = Firm.objects.filter(
-        userfirm__user=request.user.user if hasattr(request.user, 'user') else request.user
+        user_associations__user=request.user.user if hasattr(request.user, 'user') else request.user
     )
     
     selected_firm_id = request.GET.get('firm_id')
@@ -599,7 +599,7 @@ def scope2_update_view(request, pk):
     
     # Yetki kontrolü
     user_firms = Firm.objects.filter(
-        userfirm__user=request.user.user if hasattr(request.user, 'user') else request.user
+        user_associations__user=request.user.user if hasattr(request.user, 'user') else request.user
     )
     if scope2_data.firm not in user_firms:
         raise PermissionDenied
@@ -627,7 +627,7 @@ def scope2_delete_view(request, pk):
     
     # Yetki kontrolü
     user_firms = Firm.objects.filter(
-        userfirm__user=request.user.user if hasattr(request.user, 'user') else request.user
+        user_associations__user=request.user.user if hasattr(request.user, 'user') else request.user
     )
     if scope2_data.firm not in user_firms:
         raise PermissionDenied
@@ -647,7 +647,7 @@ def scope2_delete_view(request, pk):
 def scope3_list_view(request):
     """Kapsam 3 verilerini listele"""
     user_firms = Firm.objects.filter(
-        userfirm__user=request.user.user if hasattr(request.user, 'user') else request.user
+        user_associations__user=request.user.user if hasattr(request.user, 'user') else request.user
     )
     
     selected_firm_id = request.GET.get('firm_id')
@@ -672,7 +672,7 @@ def scope3_list_view(request):
 def scope3_create_view(request):
     """Kapsam 3 veri girişi"""
     user_firms = Firm.objects.filter(
-        userfirm__user=request.user.user if hasattr(request.user, 'user') else request.user
+        user_associations__user=request.user.user if hasattr(request.user, 'user') else request.user
     )
     selected_firm = user_firms.first()
     
@@ -705,7 +705,7 @@ def scope3_update_view(request, pk):
     
     # Yetki kontrolü
     user_firms = Firm.objects.filter(
-        userfirm__user=request.user.user if hasattr(request.user, 'user') else request.user
+        user_associations__user=request.user.user if hasattr(request.user, 'user') else request.user
     )
     if scope3_data.firm not in user_firms:
         raise PermissionDenied
@@ -733,7 +733,7 @@ def scope3_delete_view(request, pk):
     
     # Yetki kontrolü
     user_firms = Firm.objects.filter(
-        userfirm__user=request.user.user if hasattr(request.user, 'user') else request.user
+        user_associations__user=request.user.user if hasattr(request.user, 'user') else request.user
     )
     if scope3_data.firm not in user_firms:
         raise PermissionDenied
@@ -753,7 +753,7 @@ def scope3_delete_view(request, pk):
 def scope4_list_view(request):
     """Kapsam 4 verilerini listele"""
     user_firms = Firm.objects.filter(
-        userfirm__user=request.user.user if hasattr(request.user, 'user') else request.user
+        user_associations__user=request.user.user if hasattr(request.user, 'user') else request.user
     )
     
     selected_firm_id = request.GET.get('firm_id')
@@ -778,7 +778,7 @@ def scope4_list_view(request):
 def scope4_create_view(request):
     """Kapsam 4 veri girişi"""
     user_firms = Firm.objects.filter(
-        userfirm__user=request.user.user if hasattr(request.user, 'user') else request.user
+        user_associations__user=request.user.user if hasattr(request.user, 'user') else request.user
     )
     selected_firm = user_firms.first()
     
@@ -811,7 +811,7 @@ def scope4_update_view(request, pk):
     
     # Yetki kontrolü
     user_firms = Firm.objects.filter(
-        userfirm__user=request.user.user if hasattr(request.user, 'user') else request.user
+        user_associations__user=request.user.user if hasattr(request.user, 'user') else request.user
     )
     if scope4_data.firm not in user_firms:
         raise PermissionDenied
@@ -839,7 +839,7 @@ def scope4_delete_view(request, pk):
     
     # Yetki kontrolü
     user_firms = Firm.objects.filter(
-        userfirm__user=request.user.user if hasattr(request.user, 'user') else request.user
+        user_associations__user=request.user.user if hasattr(request.user, 'user') else request.user
     )
     if scope4_data.firm not in user_firms:
         raise PermissionDenied
@@ -887,6 +887,10 @@ def report_generate_view(request):
             
             if not firm:
                 raise PermissionDenied("No associated firm found.")
+            return redirect('carbon:report-list')
+    else:
+        form = ReportForm(initial={'report_date': datetime.date.today()})
+    return render(request, 'carbon/report_form.html', {'form': form})
 
 @login_required
 @permission_required('carbon.view_report', raise_exception=True)
@@ -896,7 +900,7 @@ def report_detail_view(request, pk):
     
     # Yetki kontrolü
     if hasattr(request.user, 'user'):
-        user_firms = Firm.objects.filter(userfirm__user=request.user.user)
+        user_firms = Firm.objects.filter(user_associations__user=request.user.user)
         if report.firm not in user_firms:
             raise PermissionDenied
     
@@ -912,7 +916,7 @@ def report_download_view(request, pk):
     
     # Yetki kontrolü
     if hasattr(request.user, 'user'):
-        user_firms = Firm.objects.filter(userfirm__user=request.user.user)
+        user_firms = Firm.objects.filter(user_associations__user=request.user.user)
         if report.firm not in user_firms:
             raise PermissionDenied
     
@@ -963,17 +967,16 @@ def api_chart_data(request):
         'datasets': []
     })
 
-# MEVCUT VIEW'LARINIZ (inputdata) - backward compatibility
 @login_required
 @permission_required('carbon.add_inputdata', raise_exception=True)
 def inputdata_create_view(request):
-    """Eski input data create view"""
     if request.method == 'POST':
         form = InputDataForm(request.POST)
         if form.is_valid():
             input_data = form.save(commit=False)
             if hasattr(request.user, 'user'):
-                firm = Firm.objects.filter(userfirm__user=request.user.user).first()
+                # userfirm yerine user_associations kullanın:
+                firm = Firm.objects.filter(user_associations__user=request.user.user).first()
                 if not firm:
                     raise PermissionDenied("No associated firm found.")
                 input_data.firm = firm
@@ -989,7 +992,7 @@ def inputdata_create_view(request):
 def inputdata_update_view(request, pk):
     """Eski input data update view"""
     input_data = get_object_or_404(InputData, pk=pk)
-    if hasattr(request.user, 'user') and input_data.firm not in Firm.objects.filter(userfirm__user=request.user.user):
+    if hasattr(request.user, 'user') and input_data.firm not in Firm.objects.filter(user_associations__user=request.user.user):
         raise PermissionDenied
     if request.method == 'POST':
         form = InputDataForm(request.POST, instance=input_data)
@@ -1005,7 +1008,7 @@ def inputdata_update_view(request, pk):
 def inputdata_delete_view(request, pk):
     """Eski input data delete view"""
     input_data = get_object_or_404(InputData, pk=pk)
-    if hasattr(request.user, 'user') and input_data.firm not in Firm.objects.filter(userfirm__user=request.user.user):
+    if hasattr(request.user, 'user') and input_data.firm not in Firm.objects.filter(user_associations__user=request.user.user):
         raise PermissionDenied
     if request.method == 'POST':
         input_data.delete()
