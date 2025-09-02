@@ -853,51 +853,40 @@ def scope4_delete_view(request, pk):
         'scope4_data': scope4_data
     })
 
-# RAPOR VIEW'LARI
+# carbon/views.py - report_list_view fonksiyonu
 @login_required
-@permission_required('carbon.view_report', raise_exception=True)
+@permission_required('carbon.view_report_carbon', raise_exception=True)
 def report_list_view(request):
-    """Rapor listesi"""
-    if hasattr(request.user, 'user'):
-        user_firms = get_user_firms(request)
+    if request.user.is_superuser:
+        reports = Report.objects.all()
+    elif hasattr(request.user, 'user'):
+        user_firms = Firm.objects.filter(user_associations__user=request.user.user)
+        reports = Report.objects.filter(firm__in=user_firms)
     else:
-        user_firms = Firm.objects.none()
+        reports = Report.objects.none()
     
-    reports = Report.objects.filter(firm__in=user_firms).order_by('-report_date')
-    
-    return render(request, 'carbon/report_list.html', {
-        'reports': reports
-    })
+    context = {'reports': reports}
+    return render(request, 'carbon/report_list.html', context)
 
 @login_required
 @permission_required('carbon.add_report', raise_exception=True)
 def report_generate_view(request):
-    """Rapor oluştur"""
-    user_firms = Firm.objects.filter(
-        user_firms = get_user_firms(request)
-    )
-    selected_firm = user_firms.first()
-    
-    if not selected_firm:
-        messages.error(request, "Firma bulunamadı.")
-        return redirect('carbon:report-list')
-    
     if request.method == 'POST':
-        form = ReportGenerateForm(request.POST, firm=selected_firm)
+        form = ReportForm(request.POST)
         if form.is_valid():
-            report = form.save(commit=False)
-            report.generated_by = request.user.user if hasattr(request.user, 'user') else request.user
-            report.save()
-            messages.success(request, "Rapor başarıyla oluşturuldu.")
-            return redirect('carbon:report-detail', pk=report.pk)
-    else:
-        form = ReportGenerateForm(firm=selected_firm)
-    
-    return render(request, 'carbon/report_form.html', {
-        'form': form,
-        'firm': selected_firm,
-        'title': 'Karbon Raporu Oluştur'
-    })
+            report_date = form.cleaned_data['report_date']
+            
+            # Kullanıcının firmasını bul
+            if request.user.is_superuser:
+                # Süper kullanıcı için ilk firmayı al veya form'dan seç
+                firm = Firm.objects.first()
+            elif hasattr(request.user, 'user'):
+                firm = Firm.objects.filter(user_associations__user=request.user.user).first()
+            else:
+                firm = Firm.objects.filter(user_associations__user=request.user).first()
+            
+            if not firm:
+                raise PermissionDenied("No associated firm found.")
 
 @login_required
 @permission_required('carbon.view_report', raise_exception=True)
