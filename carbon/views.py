@@ -1106,9 +1106,11 @@ def input_list_view(request):
     # Kullanıcının firmasını bul
     if hasattr(request.user, 'user'):
         user_profile = request.user.user
-        user_firms = Firm.objects.filter(userfirm__user=user_profile)
+        # userfirm yerine user_associations kullanın:
+        user_firms = Firm.objects.filter(user_associations__user=user_profile)
     else:
-        user_firms = Firm.objects.filter(userfirm__user=request.user)
+        # Eğer user profile yoksa, direkt olarak UserFirm modelini kullan
+        user_firms = Firm.objects.filter(user_associations__user=request.user)
     
     # Firma seçimi
     selected_firm_id = request.GET.get('firm_pk')
