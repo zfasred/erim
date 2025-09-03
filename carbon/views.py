@@ -22,7 +22,7 @@ from .forms import (
     UserFirmAccessForm, BulkUploadForm, ReportGenerateForm,
     InputCategoryForm, InputDataForm, ReportForm
 )
-from core.models import UserFirm, Firm
+from core.models import UserFirm, Firm, User
 
 # Diğer view'larda da kullanmak için yardımcı fonksiyon
 def get_user_firms(request):
@@ -1324,3 +1324,58 @@ def input_list_view(request):
         'selected_firm': selected_firm
     }
     return render(request, 'carbon/input_list.html', context)
+
+
+@login_required
+def report_list_view(request):
+    """Rapor listesi görüntüleme"""
+    
+    # Kullanıcının yetkili olduğu firmaları al
+    if request.user.is_superuser:
+        user_firms = Firm.objects.all()
+    else:
+        if hasattr(request.user, 'user'):
+            user_profile = request.user.user
+            user_firms = Firm.objects.filter(user_associations__user=user_profile)
+        else:
+            user_firms = Firm.objects.none()
+    
+    # Firma seçimi
+    selected_firm_id = request.GET.get('firm_id')
+    if selected_firm_id:
+        try:
+            selected_firm = Firm.objects.get(pk=selected_firm_id)
+            if not request.user.is_superuser and selected_firm not in user_firms:
+                messages.error(request, "Bu firmaya erişim yetkiniz yok!")
+                selected_firm = user_firms.first() if user_firms else None
+        except Firm.DoesNotExist:
+            selected_firm = user_firms.first() if user_firms else None
+    else:
+        selected_firm = user_firms.first() if user_firms else None
+    
+    # Rapor listesi
+    if selected_firm:
+        reports = Report.objects.filter(firm=selected_firm).order_by('-report_date')
+    else:
+        reports = Report.objects.none()
+    
+    # İstatistikler
+    total_emissions = 0
+    latest_report = None
+    
+    if reports.exists():
+        from django.db.models import Sum
+        total_emissions = reports.aggregate(
+            total=Sum('total_co2e')
+        )['total'] or 0
+        latest_report = reports.first()
+    
+    context = {
+        'reports': reports,
+        'user_firms': user_firms,
+        'selected_firm': selected_firm,
+        'total_emissions': total_emissions,
+        'latest_report': latest_report,
+    }
+    
+    return render(request, 'carbon/report_list.html', context)
