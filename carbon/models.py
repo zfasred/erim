@@ -23,6 +23,16 @@ class CoefficientType(models.Model):
 
 
 class FuelType(models.Model):
+    density = models.DecimalField(
+        max_digits=10, decimal_places=4,
+        null=True, blank=True,
+        verbose_name="Yoğunluk (kg/m³ veya kg/L)"
+    )
+    unit = models.CharField(
+        max_length=20,
+        default="m³",
+        verbose_name="Birim"
+    )
     """Yakıt türleri ve özellikleri"""
     FUEL_CATEGORY_CHOICES = [
         ('solid', 'Katı Yakıt'),
@@ -526,3 +536,267 @@ class Report(models.Model):
         else:
             self.direct_ratio = 0
             self.indirect_ratio = 0
+
+
+# 1. GWP DEĞERLERİ İÇİN MODEL
+class GWPValues(models.Model):
+    """Global Warming Potential değerleri"""
+    ch4_gwp = models.DecimalField(
+        max_digits=6, decimal_places=2, 
+        default=Decimal('27.9'),
+        verbose_name="CH4 GWP Değeri"
+    )
+    n2o_gwp = models.DecimalField(
+        max_digits=6, decimal_places=2,
+        default=Decimal('273'),
+        verbose_name="N2O GWP Değeri"
+    )
+    valid_from = models.DateField(verbose_name="Geçerlilik Başlangıcı")
+    source = models.CharField(max_length=100, default="IPCC AR5")
+    
+    class Meta:
+        verbose_name = "GWP Değerleri"
+        verbose_name_plural = "GWP Değerleri"
+        
+    def __str__(self):
+        return f"GWP Değerleri ({self.valid_from})"
+
+
+# 2. EXCEL KAPSAM 1 MODELİ
+class Scope1Excel(models.Model):
+    """Kapsam 1 - Excel formülasyonuyla"""
+    
+    firm = models.ForeignKey(Firm, on_delete=models.CASCADE)
+    location = models.CharField(max_length=100, verbose_name="Lokasyon")
+    fuel_type = models.ForeignKey(FuelType, on_delete=models.PROTECT)
+    
+    consumption_value = models.DecimalField(
+        max_digits=15, decimal_places=2,
+        verbose_name="Tüketim Değeri (FV)"
+    )
+    
+    co2_emission = models.DecimalField(
+        max_digits=15, decimal_places=9,
+        default=0, verbose_name="CO2 Emisyonu (ton)"
+    )
+    ch4_emission = models.DecimalField(
+        max_digits=15, decimal_places=9,
+        default=0, verbose_name="CH4 Emisyonu (ton)"
+    )
+    n2o_emission = models.DecimalField(
+        max_digits=15, decimal_places=9,
+        default=0, verbose_name="N2O Emisyonu (ton)"
+    )
+    co2e_total = models.DecimalField(
+        max_digits=15, decimal_places=9,
+        default=0, verbose_name="Toplam CO2e (ton)"
+    )
+    
+    year = models.IntegerField(verbose_name="Yıl")
+    month = models.IntegerField(verbose_name="Ay")
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+    
+    class Meta:
+        verbose_name = "Kapsam 1 (Excel)"
+        verbose_name_plural = "Kapsam 1 Verileri (Excel)"
+    
+    def calculate_emissions(self):
+        """Excel formülü: (FV * EF * NKD * Yoğunluk) * 10^-9"""
+        multiplier = Decimal('0.000000001')
+        
+        self.co2_emission = (
+            self.consumption_value * 
+            self.fuel_type.ef_co2 * 
+            self.fuel_type.ncv * 
+            self.fuel_type.density * 
+            multiplier
+        )
+        
+        self.ch4_emission = (
+            self.consumption_value * 
+            self.fuel_type.ef_ch4 * 
+            self.fuel_type.ncv * 
+            self.fuel_type.density * 
+            multiplier
+        )
+        
+        self.n2o_emission = (
+            self.consumption_value * 
+            self.fuel_type.ef_n2o * 
+            self.fuel_type.ncv * 
+            self.fuel_type.density * 
+            multiplier
+        )
+        
+        gwp = GWPValues.objects.first()
+        if gwp:
+            ch4_gwp = gwp.ch4_gwp
+            n2o_gwp = gwp.n2o_gwp
+        else:
+            ch4_gwp = Decimal('27.9')
+            n2o_gwp = Decimal('273')
+        
+        self.co2e_total = (
+            self.co2_emission + 
+            (self.ch4_emission * ch4_gwp) + 
+            (self.n2o_emission * n2o_gwp)
+        )
+    
+    def save(self, *args, **kwargs):
+        self.calculate_emissions()
+        super().save(*args, **kwargs)
+
+
+# 3. EXCEL KAPSAM 2 MODELİ
+class Scope2Excel(models.Model):
+    """Kapsam 2 - Elektrik tüketimi"""
+    
+    firm = models.ForeignKey(Firm, on_delete=models.CASCADE)
+    facility = models.CharField(max_length=100, verbose_name="Tesis/Bölüm")
+    
+    electricity_kwh = models.DecimalField(
+        max_digits=15, decimal_places=2,
+        verbose_name="Elektrik (kWh)"
+    )
+    electricity_mwh = models.DecimalField(
+        max_digits=15, decimal_places=4,
+        verbose_name="Elektrik (MWh)", 
+        blank=True, null=True
+    )
+    
+    emission_factor = models.DecimalField(
+        max_digits=10, decimal_places=4,
+        default=Decimal('0.442'),
+        verbose_name="EF (tCO2/MWh)"
+    )
+    
+    co2e_total = models.DecimalField(
+        max_digits=15, decimal_places=9,
+        default=0, verbose_name="Toplam CO2e (ton)"
+    )
+    
+    year = models.IntegerField(verbose_name="Yıl")
+    month = models.IntegerField(verbose_name="Ay")
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+    
+    class Meta:
+        verbose_name = "Kapsam 2 (Excel)"
+        verbose_name_plural = "Kapsam 2 Verileri (Excel)"
+    
+    def calculate_emissions(self):
+        """Formül: MWh * EF"""
+        self.electricity_mwh = self.electricity_kwh / Decimal('1000')
+        self.co2e_total = self.electricity_mwh * self.emission_factor
+    
+    def save(self, *args, **kwargs):
+        self.calculate_emissions()
+        super().save(*args, **kwargs)
+
+
+# 4. EXCEL KAPSAM 4 MODELİ
+class Scope4Excel(models.Model):
+    """Kapsam 4 - Satın alınan malzemeler"""
+    
+    firm = models.ForeignKey(Firm, on_delete=models.CASCADE)
+    material_name = models.CharField(max_length=100, verbose_name="Malzeme Adı")
+    
+    quantity_kg = models.DecimalField(
+        max_digits=15, decimal_places=2,
+        verbose_name="Miktar (kg)"
+    )
+    
+    emission_factor = models.DecimalField(
+        max_digits=10, decimal_places=4,
+        verbose_name="EF (kgCO2e/kg)"
+    )
+    
+    co2e_total = models.DecimalField(
+        max_digits=15, decimal_places=9,
+        default=0, verbose_name="Toplam CO2e (ton)"
+    )
+    
+    year = models.IntegerField(verbose_name="Yıl")
+    month = models.IntegerField(verbose_name="Ay")
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+    
+    class Meta:
+        verbose_name = "Kapsam 4 (Excel)"
+        verbose_name_plural = "Kapsam 4 Verileri (Excel)"
+    
+    def calculate_emissions(self):
+        """Formül: Miktar(kg) * EF / 1000"""
+        self.co2e_total = (self.quantity_kg * self.emission_factor) / Decimal('1000')
+    
+    def save(self, *args, **kwargs):
+        self.calculate_emissions()
+        super().save(*args, **kwargs)
+
+
+# 5. EXCEL RAPORU MODELİ
+class ExcelReport(models.Model):
+    """Excel benzeri rapor"""
+    
+    firm = models.ForeignKey(Firm, on_delete=models.CASCADE)
+    year = models.IntegerField(verbose_name="Yıl")
+    month = models.IntegerField(verbose_name="Ay")
+    
+    scope1_total = models.DecimalField(
+        max_digits=15, decimal_places=9,
+        default=0, verbose_name="Kapsam 1 Toplam"
+    )
+    scope2_total = models.DecimalField(
+        max_digits=15, decimal_places=9,
+        default=0, verbose_name="Kapsam 2 Toplam"
+    )
+    scope3_total = models.DecimalField(
+        max_digits=15, decimal_places=9,
+        default=0, verbose_name="Kapsam 3 Toplam"
+    )
+    scope4_total = models.DecimalField(
+        max_digits=15, decimal_places=9,
+        default=0, verbose_name="Kapsam 4 Toplam"
+    )
+    
+    total_co2e = models.DecimalField(
+        max_digits=15, decimal_places=9,
+        default=0, verbose_name="TOPLAM CO2e"
+    )
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+    
+    class Meta:
+        verbose_name = "Excel Raporu"
+        verbose_name_plural = "Excel Raporları"
+    
+    def calculate_totals(self):
+        """Tüm kapsamların toplamını hesapla"""
+        from django.db.models import Sum
+        
+        scope1 = Scope1Excel.objects.filter(
+            firm=self.firm, year=self.year, month=self.month
+        ).aggregate(total=Sum('co2e_total'))['total'] or Decimal('0')
+        
+        scope2 = Scope2Excel.objects.filter(
+            firm=self.firm, year=self.year, month=self.month
+        ).aggregate(total=Sum('co2e_total'))['total'] or Decimal('0')
+        
+        scope4 = Scope4Excel.objects.filter(
+            firm=self.firm, year=self.year, month=self.month
+        ).aggregate(total=Sum('co2e_total'))['total'] or Decimal('0')
+        
+        self.scope1_total = scope1
+        self.scope2_total = scope2
+        self.scope4_total = scope4
+        
+        self.total_co2e = scope1 + scope2 + self.scope3_total + scope4
+    
+    def save(self, *args, **kwargs):
+        self.calculate_totals()
+        super().save(*args, **kwargs)
