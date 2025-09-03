@@ -917,10 +917,24 @@ def report_generate_view(request):
             
             direct_ratio = (direct_emissions / total_co2e * 100) if total_co2e > 0 else 0.0
             indirect_ratio = (indirect_emissions / total_co2e * 100) if total_co2e > 0 else 0.0
-            
+
+            report_period_end = report_date
+            report_period_start = report_date - timedelta(days=365)  # Son 1 yıl
             report = Report.objects.create(
                 firm=firm,
                 report_date=report_date,
+                report_period_start=report_period_start,
+                report_period_end=report_period_end,
+                generated_by=request.user.profile,
+                total_co2e=0,
+                direct_ratio=0,
+                indirect_ratio=0,
+                scope1_total=0,
+                scope2_total=0,
+                scope3_total=0,
+                scope4_total=0,
+                scope5_total=0,
+                scope6_total=0,
                 total_co2e=total_co2e,
                 direct_ratio=direct_ratio,
                 indirect_ratio=indirect_ratio,
@@ -929,7 +943,7 @@ def report_generate_view(request):
             )
             return redirect('carbon:report-list')
     else:
-        form = ReportForm(initial={'report_date': timezone.now().today()})
+        form = ReportForm(initial={'report_date': timezone.now().date()})
     
     # ÖNEMLİ: GET request için mutlaka form'u render et
     return render(request, 'carbon/report_form.html', {'form': form})
