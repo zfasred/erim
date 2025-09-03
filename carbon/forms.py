@@ -323,8 +323,30 @@ class InputDataForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.fields['category'].queryset = InputCategory.objects.order_by('name')
 
-class ReportForm(forms.Form):
-    report_date = forms.DateField(
-        widget=forms.DateInput(attrs={'type': 'date'}), 
-        label="Rapor Zaman Noktası"
+class ReportForm(forms.Form):  # ModelForm değil, normal Form
+    firm = forms.ModelChoiceField(
+        queryset=Firm.objects.all(),
+        label="Firma Seçin",
+        required=True
     )
+    report_date = forms.DateField(
+        label="Rapor Tarihi",
+        widget=forms.DateInput(attrs={'type': 'date'}),
+        initial=date.today,  # Varsayılan olarak bugün
+        required=True
+    )
+    
+    def __init__(self, *args, **kwargs):
+        user = kwargs.pop('user', None)
+        super().__init__(*args, **kwargs)
+        
+        # Kullanıcının erişebileceği firmaları filtrele
+        if user and not user.is_superuser:
+            if hasattr(user, 'user'):
+                self.fields['firm'].queryset = Firm.objects.filter(
+                    user_associations__user=user.user
+                )
+            else:
+                self.fields['firm'].queryset = Firm.objects.filter(
+                    user_associations__user=user
+                )
