@@ -1,4 +1,4 @@
-C:\Users\buhar>C:/Users/buhar/AppData/Local/Microsoft/WindowsApps/python3.12.exe C:/Users/buhar/ekonaz/manage.py runserver
+C:\Users\buhar\ekonaz>C:/Users/buhar/AppData/Local/Microsoft/WindowsApps/python3.12.exe C:/Users/buhar/ekonaz/manage.py runserver
 Watching for file changes with StatReloader
 Performing system checks...
 
@@ -18,17 +18,11 @@ Traceback (most recent call last):
   File "C:\Users\buhar\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\LocalCache\local-packages\Python312\site-packages\django\core\checks\registry.py", line 89, in run_checks
     new_errors = check(app_configs=app_configs, databases=databases)
                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "C:\Users\buhar\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\LocalCache\local-packages\Python312\site-packages\django\core\checks\urls.py", line 44, in check_url_namespaces_unique
-    all_namespaces = _load_all_namespaces(resolver)
-                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "C:\Users\buhar\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\LocalCache\local-packages\Python312\site-packages\django\core\checks\urls.py", line 63, in _load_all_namespaces
-    url_patterns = getattr(resolver, "url_patterns", [])
-                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "C:\Users\buhar\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\LocalCache\local-packages\Python312\site-packages\django\utils\functional.py", line 47, in __get__
-    res = instance.__dict__[self.name] = self.func(instance)
-                                         ^^^^^^^^^^^^^^^^^^^
-  File "C:\Users\buhar\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\LocalCache\local-packages\Python312\site-packages\django\urls\resolvers.py", line 718, in url_patterns
-    patterns = getattr(self.urlconf_module, "urlpatterns", self.urlconf_module)
+  File "C:\Users\buhar\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\LocalCache\local-packages\Python312\site-packages\django\core\checks\urls.py", line 136, in check_custom_error_handlers
+    handler = resolver.resolve_error_handler(status_code)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\buhar\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\LocalCache\local-packages\Python312\site-packages\django\urls\resolvers.py", line 732, in resolve_error_handler
+    callback = getattr(self.urlconf_module, "handler%s" % view_type, None)
                        ^^^^^^^^^^^^^^^^^^^
   File "C:\Users\buhar\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\LocalCache\local-packages\Python312\site-packages\django\utils\functional.py", line 47, in __get__
     res = instance.__dict__[self.name] = self.func(instance)
@@ -60,9 +54,7 @@ Traceback (most recent call last):
   File "<frozen importlib._bootstrap>", line 935, in _load_unlocked
   File "<frozen importlib._bootstrap_external>", line 999, in exec_module
   File "<frozen importlib._bootstrap>", line 488, in _call_with_frames_removed
-  File "C:\Users\buhar\ekonaz\carbon\urls.py", line 3, in <module>
-    from . import views
-  File "C:\Users\buhar\ekonaz\carbon\views.py", line 942
-    generated_by=request.user.user if hasattr(request.user, 'user') else None
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-SyntaxError: keyword argument repeated: generated_by
+  File "C:\Users\buhar\ekonaz\carbon\urls.py", line 18, in <module>
+    path('report/', views.report_list_view, name='report-list'),
+                    ^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'carbon.views' has no attribute 'report_list_view'. Did you mean: 'input_list_view'?
