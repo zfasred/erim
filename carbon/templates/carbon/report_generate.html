@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <h2>Karbon Raporu Oluştur</h2>
+    
+    <form method="post">
+        {% csrf_token %}
+        
+        <div class="mb-3">
+            {{ form.firm.label_tag }}
+            {{ form.firm }}
+        </div>
+        
+        <div class="mb-3">
+            {{ form.report_date.label_tag }}
+            {{ form.report_date }}
+            <small class="text-muted">Varsayılan: Bugün</small>
+        </div>
+        
+        <button type="submit" name="generate" class="btn btn-primary">Rapor Görüntüle</button>
+        <button type="submit" name="export_excel" class="btn btn-success">Excel'e Aktar</button>
+    </form>
+</div>
+{% endblock %}
