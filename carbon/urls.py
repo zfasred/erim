@@ -18,4 +18,5 @@ urlpatterns = [
     path('report/', views.report_list_view, name='report-list'),
     path('report/generate/', views.report_generate_view, name='report-generate'),
     path('report/<int:pk>/detail/', views.report_detail_view, name='report-detail'),
+    path('excel-report/', views.excel_report_view, name='excel-report'),
 ]

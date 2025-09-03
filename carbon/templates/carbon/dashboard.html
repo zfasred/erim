@@ -1,349 +1,271 @@
+<!-- templates/carbon/dashboard.html -->
 {% extends 'base.html' %}
+{% load static %}
 
-{% block title %}Karbon Yönetim Dashboard - Ekonaz Portal{% endblock %}
+{% block title %}Karbon Ayak İzi Modülü{% endblock %}
 
 {% block content %}
-<style>
-    .dashboard-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-        gap: 1.5rem;
-        margin-bottom: 2rem;
-    }
-    
-    .metric-card {
-        background: var(--card-background-color);
-        border: 1px solid var(--card-border-color);
-        border-radius: 8px;
-        padding: 1.5rem;
-        transition: transform 0.2s;
-    }
-    
-    .metric-card:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-    }
-    
-    .metric-value {
-        font-size: 2rem;
-        font-weight: bold;
-        color: var(--primary);
-        margin: 0.5rem 0;
-    }
-    
-    .metric-label {
-        color: var(--muted-color);
-        font-size: 0.9rem;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-    }
-    
-    .metric-change {
-        font-size: 0.85rem;
-        margin-top: 0.5rem;
-    }
-    
-    .change-positive { color: #28a745; }
-    .change-negative { color: #dc3545; }
-    
-    .scope-tabs {
-        display: flex;
-        gap: 0.5rem;
-        margin-bottom: 1.5rem;
-        border-bottom: 2px solid var(--card-border-color);
-    }
-    
-    .scope-tab {
-        padding: 0.75rem 1.5rem;
-        background: none;
-        border: none;
-        cursor: pointer;
-        transition: all 0.3s;
-        position: relative;
-    }
-    
-    .scope-tab:hover {
-        background: var(--card-background-color);
-    }
-    
-    .scope-tab.active {
-        color: var(--primary);
-    }
-    
-    .scope-tab.active::after {
-        content: '';
-        position: absolute;
-        bottom: -2px;
-        left: 0;
-        right: 0;
-        height: 2px;
-        background: var(--primary);
-    }
-    
-    .quick-actions {
-        display: flex;
-        gap: 1rem;
-        flex-wrap: wrap;
-        margin-bottom: 2rem;
-    }
-    
-    .action-button {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.5rem;
-        padding: 0.75rem 1.5rem;
-        background: var(--primary);
-        color: white;
-        text-decoration: none;
-        border-radius: 4px;
-        transition: background 0.3s;
-    }
-    
-    .action-button:hover {
-        background: var(--primary-hover);
-        color: white;
-    }
-    
-    .data-table {
-        width: 100%;
-        margin-top: 1rem;
-    }
-    
-    .chart-container {
-        background: var(--card-background-color);
-        border: 1px solid var(--card-border-color);
-        border-radius: 8px;
-        padding: 1.5rem;
-        margin-bottom: 2rem;
-        height: 400px;
-    }
-</style>
-
-<h1>Karbon Yönetim Dashboard</h1>
-
-<!-- Hızlı İşlemler -->
-<div class="quick-actions">
-    <a href="{% url 'carbon:scope1-create' %}" class="action-button">
-        ➕ Kapsam 1 Veri Girişi
-    </a>
-    <a href="{% url 'carbon:scope2-create' %}" class="action-button">
-        ⚡ Kapsam 2 Veri Girişi
-    </a>
-    <a href="{% url 'carbon:scope3-create' %}" class="action-button">
-        🚛 Kapsam 3 Veri Girişi
-    </a>
-    <a href="{% url 'carbon:scope4-create' %}" class="action-button">
-        📦 Kapsam 4 Veri Girişi
-    </a>
-    <a href="{% url 'carbon:report-generate' %}" class="action-button" style="background: #28a745;">
-        📊 Rapor Oluştur
-    </a>
-    <a href="{% url 'carbon:bulk-upload' %}" class="action-button" style="background: #17a2b8;">
-        📤 Toplu Veri Yükle
-    </a>
-</div>
-
-<!-- Özet Metrikler -->
-<div class="dashboard-grid">
-    <div class="metric-card">
-        <div class="metric-label">Toplam Karbon Ayak İzi</div>
-        <div class="metric-value">{{ total_emissions|floatformat:2 }} tCO2e</div>
-        <div class="metric-change {% if emission_change < 0 %}change-positive{% else %}change-negative{% endif %}">
-            {% if emission_change < 0 %}↓{% else %}↑{% endif %} 
-            {{ emission_change|floatformat:1 }}% (önceki aya göre)
+<div class="container-fluid py-4">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card bg-gradient-primary">
+                <div class="card-body">
+                    <h2 class="text-white mb-0">
+                        <i class="fas fa-leaf"></i> Karbon Ayak İzi Hesaplama Modülü
+                    </h2>
+                    <p class="text-white-50 mb-0">ISO 14064 Standardına Uygun Karbon Emisyon Yönetimi</p>
+                </div>
+            </div>
         </div>
     </div>
-    
-    <div class="metric-card">
-        <div class="metric-label">Kapsam 1 (Doğrudan)</div>
-        <div class="metric-value">{{ scope1_total|floatformat:2 }} tCO2e</div>
-        <div class="metric-change">{{ scope1_percentage|floatformat:1 }}% toplam</div>
+
+    <!-- İstatistikler -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h6 class="text-muted mb-1">Toplam Rapor</h6>
+                            <h3 class="mb-0">{{ total_reports }}</h3>
+                        </div>
+                        <div class="text-primary">
+                            <i class="fas fa-file-alt fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h6 class="text-muted mb-1">Toplam Emisyon</h6>
+                            <h3 class="mb-0">{{ total_emissions|floatformat:2 }} <small>tCO2e</small></h3>
+                        </div>
+                        <div class="text-danger">
+                            <i class="fas fa-cloud fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h6 class="text-muted mb-1">Aktif Firma</h6>
+                            <h3 class="mb-0">{{ firms|length }}</h3>
+                        </div>
+                        <div class="text-success">
+                            <i class="fas fa-building fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h6 class="text-muted mb-1">Mevcut Dönem</h6>
+                            <h3 class="mb-0">2025 / Ocak</h3>
+                        </div>
+                        <div class="text-info">
+                            <i class="fas fa-calendar fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
-    
-    <div class="metric-card">
-        <div class="metric-label">Kapsam 2 (Elektrik)</div>
-        <div class="metric-value">{{ scope2_total|floatformat:2 }} tCO2e</div>
-        <div class="metric-change">{{ scope2_percentage|floatformat:1 }}% toplam</div>
-    </div>
-    
-    <div class="metric-card">
-        <div class="metric-label">Kapsam 3 (Ulaşım)</div>
-        <div class="metric-value">{{ scope3_total|floatformat:2 }} tCO2e</div>
-        <div class="metric-change">{{ scope3_percentage|floatformat:1 }}% toplam</div>
-    </div>
-    
-    <div class="metric-card">
-        <div class="metric-label">Kapsam 4 (Satın Alınan)</div>
-        <div class="metric-value">{{ scope4_total|floatformat:2 }} tCO2e</div>
-        <div class="metric-change">{{ scope4_percentage|floatformat:1 }}% toplam</div>
-    </div>
-    
-    <div class="metric-card">
-        <div class="metric-label">Veri Girişi Tamamlama</div>
-        <div class="metric-value">{{ data_completeness|floatformat:0 }}%</div>
-        <div class="metric-change">{{ pending_entries }} bekleyen giriş</div>
+
+    <!-- Hızlı İşlemler ve Son Raporlar -->
+    <div class="row">
+        <!-- Hızlı İşlemler -->
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Hızlı İşlemler</h5>
+                </div>
+                <div class="card-body">
+                    <form method="post" class="mb-3">
+                        {% csrf_token %}
+                        <div class="mb-3">
+                            <label class="form-label">Firma Seçin</label>
+                            <select name="firm_id" class="form-select">
+                                {% for firm in firms %}
+                                <option value="{{ firm.id }}">{{ firm.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col-6">
+                                <label class="form-label">Yıl</label>
+                                <select name="year" class="form-select">
+                                    <option value="2025">2025</option>
+                                    <option value="2024">2024</option>
+                                </select>
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label">Ay</label>
+                                <select name="month" class="form-select">
+                                    <option value="1">Ocak</option>
+                                    <option value="2">Şubat</option>
+                                    <option value="3">Mart</option>
+                                    <option value="4">Nisan</option>
+                                    <option value="5">Mayıs</option>
+                                    <option value="6">Haziran</option>
+                                    <option value="7">Temmuz</option>
+                                    <option value="8">Ağustos</option>
+                                    <option value="9">Eylül</option>
+                                    <option value="10">Ekim</option>
+                                    <option value="11">Kasım</option>
+                                    <option value="12">Aralık</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="d-grid gap-2">
+                            <button type="submit" formaction="{% url 'carbon:input' 1 %}" class="btn btn-primary">
+                                <i class="fas fa-edit"></i> Veri Girişi
+                            </button>
+                            <button type="submit" formaction="{% url 'carbon:calculate' 1 %}" class="btn btn-success">
+                                <i class="fas fa-calculator"></i> Hesapla
+                            </button>
+                            {% if user.is_superuser %}
+                            <button type="submit" formaction="{% url 'carbon:load_example' 1 %}" class="btn btn-warning">
+                                <i class="fas fa-file-excel"></i> Excel Verilerini Yükle
+                            </button>
+                            {% endif %}
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Kapsam Açıklamaları -->
+            <div class="card mt-3">
+                <div class="card-header">
+                    <h5 class="mb-0">Kapsam Tanımları</h5>
+                </div>
+                <div class="card-body small">
+                    <div class="mb-2">
+                        <span class="badge bg-danger">Kapsam 1</span>
+                        <span class="text-muted">Doğrudan Emisyonlar (Yakıt tüketimi)</span>
+                    </div>
+                    <div class="mb-2">
+                        <span class="badge bg-warning">Kapsam 2</span>
+                        <span class="text-muted">Enerji Dolaylı (Elektrik)</span>
+                    </div>
+                    <div class="mb-2">
+                        <span class="badge bg-info">Kapsam 3</span>
+                        <span class="text-muted">Ulaşım Kaynaklı</span>
+                    </div>
+                    <div class="mb-2">
+                        <span class="badge bg-success">Kapsam 4</span>
+                        <span class="text-muted">Satın Alınan Ürünler</span>
+                    </div>
+                    <div class="mb-2">
+                        <span class="badge bg-secondary">Kapsam 5</span>
+                        <span class="text-muted">Ürün Kullanımı Sonrası</span>
+                    </div>
+                    <div class="mb-2">
+                        <span class="badge bg-dark">Kapsam 6</span>
+                        <span class="text-muted">Diğer Dolaylı</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Son Raporlar -->
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Son Raporlar</h5>
+                    <a href="#" class="btn btn-sm btn-outline-primary">Tüm Raporlar</a>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Firma</th>
+                                    <th>Dönem</th>
+                                    <th>Kapsam 1</th>
+                                    <th>Kapsam 2</th>
+                                    <th>Kapsam 3</th>
+                                    <th>Kapsam 4</th>
+                                    <th>Toplam</th>
+                                    <th>Durum</th>
+                                    <th>İşlem</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for report in recent_reports %}
+                                <tr>
+                                    <td>{{ report.firm.name }}</td>
+                                    <td>{{ report.report_year }}/{% if report.report_month %}{{ report.report_month }}{% else %}Yıllık{% endif %}</td>
+                                    <td>{{ report.scope1_total|floatformat:2 }}</td>
+                                    <td>{{ report.scope2_total|floatformat:2 }}</td>
+                                    <td>{{ report.scope3_total|floatformat:2 }}</td>
+                                    <td>{{ report.scope4_total|floatformat:2 }}</td>
+                                    <td><strong>{{ report.total_co2e|floatformat:2 }}</strong></td>
+                                    <td>
+                                        {% if report.status == 'DRAFT' %}
+                                        <span class="badge bg-secondary">Taslak</span>
+                                        {% elif report.status == 'COMPLETED' %}
+                                        <span class="badge bg-primary">Tamamlandı</span>
+                                        {% elif report.status == 'APPROVED' %}
+                                        <span class="badge bg-success">Onaylandı</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <a href="{% url 'carbon:report_detail' report.id %}" class="btn btn-sm btn-info">
+                                            <i class="fas fa-eye"></i>
+                                        </a>
+                                        <a href="{% url 'carbon:download_report' report.id %}" class="btn btn-sm btn-success">
+                                            <i class="fas fa-download"></i>
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="9" class="text-center text-muted">Henüz rapor bulunmuyor</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Emisyon Dağılımı Grafiği -->
+            <div class="card mt-3">
+                <div class="card-header">
+                    <h5 class="mb-0">Emisyon Faktörleri</h5>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info">
+                        <strong>Güncel Faktörler:</strong>
+                        <ul class="mb-0 mt-2">
+                            <li>Doğalgaz: 56,100 kgCO2/TJ</li>
+                            <li>Elektrik: 0.442 tCO2/MWh (Türkiye Şebekesi)</li>
+                            <li>Motorin: 74,100 kgCO2/TJ</li>
+                            <li>GWP Değerleri: CH4=27.9, N2O=273</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 
-<!-- Kapsam Sekmeleri -->
-<div class="scope-tabs">
-    <button class="scope-tab active" onclick="showScope('all')">Tümü</button>
-    <button class="scope-tab" onclick="showScope('scope1')">Kapsam 1</button>
-    <button class="scope-tab" onclick="showScope('scope2')">Kapsam 2</button>
-    <button class="scope-tab" onclick="showScope('scope3')">Kapsam 3</button>
-    <button class="scope-tab" onclick="showScope('scope4')">Kapsam 4</button>
-</div>
-
-<!-- Grafik Alanı -->
-<div class="chart-container">
-    <canvas id="emissionsChart"></canvas>
-</div>
-
-<!-- Son Girişler Tablosu -->
-<h2>Son Veri Girişleri</h2>
-<figure>
-    <table class="data-table">
-        <thead>
-            <tr>
-                <th>Tarih</th>
-                <th>Kapsam</th>
-                <th>Lokasyon</th>
-                <th>Değer</th>
-                <th>CO2e (ton)</th>
-                <th>İşlem</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for entry in recent_entries %}
-            <tr>
-                <td>{{ entry.created_at|date:"d.m.Y" }}</td>
-                <td>{{ entry.scope }}</td>
-                <td>{{ entry.location }}</td>
-                <td>{{ entry.value }} {{ entry.unit }}</td>
-                <td>{{ entry.co2e|floatformat:3 }}</td>
-                <td>
-                    <a href="{{ entry.edit_url }}">Düzenle</a>
-                </td>
-            </tr>
-            {% empty %}
-            <tr>
-                <td colspan="6">Henüz veri girişi yapılmamış.</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-</figure>
-
-<!-- Son Raporlar -->
-<h2>Son Oluşturulan Raporlar</h2>
-<figure>
-    <table class="data-table">
-        <thead>
-            <tr>
-                <th>Rapor Tarihi</th>
-                <th>Dönem</th>
-                <th>Toplam CO2e</th>
-                <th>İşlemler</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for report in recent_reports %}
-            <tr>
-                <td>{{ report.report_date|date:"d.m.Y" }}</td>
-                <td>{{ report.report_period_start|date:"M Y" }} - {{ report.report_period_end|date:"M Y" }}</td>
-                <td>{{ report.total_co2e|floatformat:2 }} ton</td>
-                <td>
-                    <a href="{% url 'carbon:report-detail' report.pk %}">Görüntüle</a> |
-                    <a href="{% url 'carbon:report-download' report.pk %}">İndir</a>
-                </td>
-            </tr>
-            {% empty %}
-            <tr>
-                <td colspan="4">Henüz rapor oluşturulmamış.</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-</figure>
-
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script>
-// Grafik için veri hazırlama
-const ctx = document.getElementById('emissionsChart').getContext('2d');
-const emissionsChart = new Chart(ctx, {
-    type: 'bar',
-    data: {
-        labels: {{ chart_labels|safe }},
-        datasets: [
-            {
-                label: 'Kapsam 1',
-                data: {{ scope1_data|safe }},
-                backgroundColor: 'rgba(255, 99, 132, 0.5)',
-                borderColor: 'rgba(255, 99, 132, 1)',
-                borderWidth: 1
-            },
-            {
-                label: 'Kapsam 2',
-                data: {{ scope2_data|safe }},
-                backgroundColor: 'rgba(54, 162, 235, 0.5)',
-                borderColor: 'rgba(54, 162, 235, 1)',
-                borderWidth: 1
-            },
-            {
-                label: 'Kapsam 3',
-                data: {{ scope3_data|safe }},
-                backgroundColor: 'rgba(255, 206, 86, 0.5)',
-                borderColor: 'rgba(255, 206, 86, 1)',
-                borderWidth: 1
-            },
-            {
-                label: 'Kapsam 4',
-                data: {{ scope4_data|safe }},
-                backgroundColor: 'rgba(75, 192, 192, 0.5)',
-                borderColor: 'rgba(75, 192, 192, 1)',
-                borderWidth: 1
-            }
-        ]
-    },
-    options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        scales: {
-            x: {
-                stacked: true,
-            },
-            y: {
-                stacked: true,
-                beginAtZero: true,
-                title: {
-                    display: true,
-                    text: 'CO2e (ton)'
-                }
-            }
-        },
-        plugins: {
-            title: {
-                display: true,
-                text: 'Aylık Emisyon Trendi'
-            },
-            legend: {
-                display: true,
-                position: 'top'
-            }
-        }
-    }
-});
-
-// Sekme değiştirme fonksiyonu
-function showScope(scope) {
-    // Sekme aktiflik durumunu güncelle
-    document.querySelectorAll('.scope-tab').forEach(tab => {
-        tab.classList.remove('active');
-    });
-    event.target.classList.add('active');
-    
-    // İleride scope'a göre filtreleme yapılabilir
-    console.log('Showing scope:', scope);
+<style>
+.bg-gradient-primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 }
-</script>
+</style>
 {% endblock %}

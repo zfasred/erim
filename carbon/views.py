@@ -14,7 +14,8 @@ from io import BytesIO
 from .models import (
     CoefficientType, EmissionFactor, FuelType,
     Scope1Data, Scope2Data, Scope3Data, Scope4Data,
-    InputCategory, InputData, Report
+    InputCategory, InputData, Report,
+    FuelType, GWPValues, Scope1Excel, Scope2Excel, Scope4Excel, ExcelReport
 )
 from .forms import (
     CoefficientTypeForm, EmissionFactorForm, FuelTypeForm,
@@ -1379,3 +1380,66 @@ def report_list_view(request):
     }
     
     return render(request, 'carbon/report_list.html', context)
+
+
+@login_required
+def excel_report_view(request):
+    """Excel formatında karbon raporu görüntüleme"""
+    
+    # Firma seç
+    if request.user.is_superuser:
+        firms = Firm.objects.all()
+    else:
+        if hasattr(request.user, 'user'):
+            firms = Firm.objects.filter(user_associations__user=request.user.user)
+        else:
+            firms = Firm.objects.none()
+    
+    selected_firm_id = request.GET.get('firm_id')
+    selected_firm = None
+    report = None
+    scope1_data = None
+    scope2_data = None
+    scope4_data = None
+    
+    if selected_firm_id:
+        selected_firm = get_object_or_404(Firm, pk=selected_firm_id)
+        
+        # Rapor getir veya oluştur
+        year = int(request.GET.get('year', 2025))
+        month = int(request.GET.get('month', 1))
+        
+        report = ExcelReport.objects.filter(
+            firm=selected_firm,
+            year=year,
+            month=month
+        ).first()
+        
+        if report:
+            # Kapsam detaylarını getir
+            scope1_data = Scope1Excel.objects.filter(
+                firm=selected_firm,
+                year=year,
+                month=month
+            )
+            scope2_data = Scope2Excel.objects.filter(
+                firm=selected_firm,
+                year=year,
+                month=month
+            )
+            scope4_data = Scope4Excel.objects.filter(
+                firm=selected_firm,
+                year=year,
+                month=month
+            )
+    
+    context = {
+        'firms': firms,
+        'selected_firm': selected_firm,
+        'report': report,
+        'scope1_data': scope1_data,
+        'scope2_data': scope2_data,
+        'scope4_data': scope4_data,
+    }
+    
+    return render(request, 'carbon/excel_report.html', context)
