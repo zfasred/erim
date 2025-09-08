@@ -1,6 +1,9 @@
+# carbon/admin.py
 from django.contrib import admin
-from .models import CoefficientType, EmissionFactor, InputCategory, InputData, Report, FuelType, GWPValues, Scope1Excel, Scope2Excel, Scope4Excel, ExcelReport
-
+from .models import (
+    CoefficientType, EmissionFactor, InputCategory, InputData, Report, 
+    FuelType, GWPValues, Scope1Excel, Scope2Excel, Scope4Excel, ExcelReport
+)
 
 # FuelType admin
 @admin.register(FuelType)
@@ -51,7 +54,7 @@ class ExcelReportAdmin(admin.ModelAdmin):
         obj.calculate_totals()
         super().save_model(request, obj, form, change)
 
-
+# CoefficientType admin
 @admin.register(CoefficientType)
 class CoefficientTypeAdmin(admin.ModelAdmin):
     list_display = ('name', 'unit')
@@ -86,17 +89,3 @@ class ReportAdmin(admin.ModelAdmin):
     search_fields = ['firm__name']
     date_hierarchy = 'report_date'
     readonly_fields = ['generated_at', 'generated_by']
-
-# Scope1Data admin
-@admin.register(Scope1Data)
-class Scope1DataAdmin(admin.ModelAdmin):
-    list_display = ['firm', 'combustion_type', 'fuel_type', 'consumption_value', 'total_co2e', 'period_year', 'period_month']
-    list_filter = ['firm', 'combustion_type', 'fuel_type', 'period_year']
-    search_fields = ['firm__name']
-
-# Scope2Data admin
-@admin.register(Scope2Data)
-class Scope2DataAdmin(admin.ModelAdmin):
-    list_display = ['firm', 'location', 'electricity_kwh', 'total_co2e', 'period_year', 'period_month']
-    list_filter = ['firm', 'period_year']
-    search_fields = ['firm__name']
