@@ -4,6 +4,24 @@ from . import views
 
 app_name = 'carbon'
 urlpatterns = [
+
+    # Ana sayfa
+    path('', views.carbon_dashboard, name='dashboard'),
+    
+    # Veri girişi
+    path('firm/<int:firm_id>/input/', views.carbon_input, name='input'),
+    
+    # Hesaplama
+    path('firm/<int:firm_id>/calculate/', views.calculate_carbon, name='calculate'),
+    
+    # Rapor
+    path('report/<int:report_id>/', views.report_detail, name='report_detail'),
+    path('report/<int:report_id>/download/', views.download_report, name='download_report'),
+    
+    # Yardımcı
+    path('firm/<int:firm_id>/load-example/', views.load_example_data, name='load_example'),
+
+    path('management/', views.management_view, name='management-list'),
     path('management/', views.management_list_view, name='management-list'),
     path('emissionfactor/create/', views.emissionfactor_create_view, name='emissionfactor-create'),
     path('emissionfactor/<int:pk>/update/', views.emissionfactor_update_view, name='emissionfactor-update'),
