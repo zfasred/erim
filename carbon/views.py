@@ -1096,7 +1096,7 @@ def scope4_delete_view(request, pk):
 @login_required
 @permission_required('carbon.view_report_carbon', raise_exception=True)
 def report_generate_view(request):
-    """Anlık karbon raporu oluştur (kaydetmeden)"""
+    """Anlık karbon raporu oluştur"""
     
     if request.method == 'POST':
         form = ReportForm(request.POST, user=request.user)
@@ -1116,38 +1116,50 @@ def report_generate_view(request):
             else:
                 generated_by_user = None
             
-            # Verileri topla (veritabanından)
-            scope1_data = Scope1Data.objects.filter(
-                firm=firm,
-                period_year__gte=report_period_start.year,
-                period_year__lte=report_period_end.year
-            ).aggregate(
-                total=Sum('total_co2e')
-            )['total'] or 0
+            # Yıl ve ay belirle
+            report_year = report_date.year
+            report_month = report_date.month
             
-            scope2_data = Scope2Data.objects.filter(
+            # Excel modellerinden verileri topla
+            scope1_total = Scope1Excel.objects.filter(
                 firm=firm,
-                period_year__gte=report_period_start.year,
-                period_year__lte=report_period_end.year
+                year__gte=report_period_start.year,
+                year__lte=report_period_end.year
             ).aggregate(
-                total=Sum('total_co2e')
-            )['total'] or 0
+                total=Sum('co2e_total')
+            )['total'] or Decimal('0')
             
-            scope3_data = Scope3Data.objects.filter(
+            scope2_total = Scope2Excel.objects.filter(
                 firm=firm,
-                period_year__gte=report_period_start.year,
-                period_year__lte=report_period_end.year
+                year__gte=report_period_start.year,
+                year__lte=report_period_end.year
             ).aggregate(
-                total=Sum('total_co2e')
-            )['total'] or 0
+                total=Sum('co2e_total')
+            )['total'] or Decimal('0')
             
-            scope4_data = Scope4Data.objects.filter(
+            scope4_total = Scope4Excel.objects.filter(
                 firm=firm,
-                period_year__gte=report_period_start.year,
-                period_year__lte=report_period_end.year
+                year__gte=report_period_start.year,
+                year__lte=report_period_end.year
             ).aggregate(
-                total=Sum('total_co2e')
-            )['total'] or 0
+                total=Sum('co2e_total')
+            )['total'] or Decimal('0')
+            
+            # Scope3 ve diğerleri için varsayılan değer
+            scope3_total = Decimal('0')
+            scope5_total = Decimal('0')
+            scope6_total = Decimal('0')
+            
+            # Toplamları hesapla
+            total_emissions = scope1_total + scope2_total + scope3_total + scope4_total + scope5_total + scope6_total
+            
+            # Oranları hesapla
+            if total_emissions > 0:
+                direct_ratio = float((scope1_total + scope2_total) / total_emissions * 100)
+                indirect_ratio = float((scope3_total + scope4_total) / total_emissions * 100)
+            else:
+                direct_ratio = 0.0
+                indirect_ratio = 0.0
             
             # Rapor oluştur
             report = Report.objects.create(
@@ -1155,16 +1167,18 @@ def report_generate_view(request):
                 report_date=report_date,
                 report_period_start=report_period_start,
                 report_period_end=report_period_end,
+                report_year=report_year,
+                report_month=report_month,
                 generated_by=generated_by_user,
-                total_co2e=scope1_data + scope2_data + scope3_data + scope4_data,
-                direct_ratio=(scope1_data + scope2_data) / (scope1_data + scope2_data + scope3_data + scope4_data) * 100 if (scope1_data + scope2_data + scope3_data + scope4_data) > 0 else 0,
-                indirect_ratio=(scope3_data + scope4_data) / (scope1_data + scope2_data + scope3_data + scope4_data) * 100 if (scope1_data + scope2_data + scope3_data + scope4_data) > 0 else 0,
-                scope1_total=scope1_data,
-                scope2_total=scope2_data,
-                scope3_total=scope3_data,
-                scope4_total=scope4_data,
-                scope5_total=0,
-                scope6_total=0,
+                total_co2e=float(total_emissions),
+                direct_ratio=direct_ratio,
+                indirect_ratio=indirect_ratio,
+                scope1_total=scope1_total,
+                scope2_total=scope2_total,
+                scope3_total=scope3_total,
+                scope4_total=scope4_total,
+                scope5_total=scope5_total,
+                scope6_total=scope6_total
             )
             
             messages.success(request, "Rapor başarıyla oluşturuldu!")
@@ -1172,7 +1186,6 @@ def report_generate_view(request):
     else:
         form = ReportForm(user=request.user, initial={'report_date': timezone.now().date()})
     
-    # ÖNEMLİ: GET request için mutlaka form'u render et
     return render(request, 'carbon/report_form.html', {'form': form})
 
 
