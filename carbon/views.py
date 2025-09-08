@@ -33,16 +33,16 @@ from .models import Report  # Report modelini import etmelisiniz
 from .services import CarbonCalculationService, ExcelDataLoader
 from .models import (
     CoefficientType, EmissionFactor, FuelType,
-    Scope1Data, Scope2Data, Scope3Data, Scope4Data,
+    Scope1Excel, Scope2Excel, Scope3Excel, Scope4Excel,
     InputCategory, InputData, Report,
     FuelType, GWPValues, Scope1Excel, Scope2Excel, Scope4Excel, ExcelReport,
     ReportDetail, ProductAllocation
 )
-from .forms import (
-    CoefficientTypeForm, EmissionFactorForm, FuelTypeForm,
-    Scope1DataForm, Scope2DataForm, Scope3DataForm, Scope4DataForm,
-    UserFirmAccessForm, BulkUploadForm, ReportGenerateForm,
-    InputCategoryForm, InputDataForm, ReportForm
+from .models import (
+    CoefficientType, EmissionFactor, FuelType,
+    InputCategory, InputData, Report,
+    GWPValues, Scope1Excel, Scope2Excel, Scope4Excel, ExcelReport,
+    ReportDetail, ProductAllocation
 )
 
 
@@ -93,25 +93,25 @@ def dashboard_view(request):
         prev_year = current_year
     
     # Mevcut ay toplamları
-    scope1_current = Scope1Data.objects.filter(
+    scope1_current = Scope1Excel.objects.filter(
         firm=selected_firm,
         period_year=current_year,
         period_month=current_month
     ).aggregate(total=Sum('total_co2e'))['total'] or 0
     
-    scope2_current = Scope2Data.objects.filter(
+    scope2_current = Scope2Excel.objects.filter(
         firm=selected_firm,
         period_year=current_year,
         period_month=current_month
     ).aggregate(total=Sum('total_co2e'))['total'] or 0
     
-    scope3_current = Scope3Data.objects.filter(
+    scope3_current = Scope3Excel.objects.filter(
         firm=selected_firm,
         period_year=current_year,
         period_month=current_month
     ).aggregate(total=Sum('total_co2e'))['total'] or 0
     
-    scope4_current = Scope4Data.objects.filter(
+    scope4_current = Scope4Excel.objects.filter(
         firm=selected_firm,
         period_year=current_year,
         period_month=current_month
@@ -120,25 +120,25 @@ def dashboard_view(request):
     total_current = scope1_current + scope2_current + scope3_current + scope4_current
     
     # Önceki ay toplamları (karşılaştırma için)
-    scope1_prev = Scope1Data.objects.filter(
+    scope1_prev = Scope1Excel.objects.filter(
         firm=selected_firm,
         period_year=prev_year,
         period_month=prev_month
     ).aggregate(total=Sum('total_co2e'))['total'] or 0
     
-    scope2_prev = Scope2Data.objects.filter(
+    scope2_prev = Scope2Excel.objects.filter(
         firm=selected_firm,
         period_year=prev_year,
         period_month=prev_month
     ).aggregate(total=Sum('total_co2e'))['total'] or 0
     
-    scope3_prev = Scope3Data.objects.filter(
+    scope3_prev = Scope3Excel.objects.filter(
         firm=selected_firm,
         period_year=prev_year,
         period_month=prev_month
     ).aggregate(total=Sum('total_co2e'))['total'] or 0
     
-    scope4_prev = Scope4Data.objects.filter(
+    scope4_prev = Scope4Excel.objects.filter(
         firm=selected_firm,
         period_year=prev_year,
         period_month=prev_month
@@ -174,25 +174,25 @@ def dashboard_view(request):
         chart_labels.append(month_year)
         
         # Her ay için toplamları al
-        s1 = Scope1Data.objects.filter(
+        s1 = Scope1Excel.objects.filter(
             firm=selected_firm,
             period_year=target_date.year,
             period_month=target_date.month
         ).aggregate(total=Sum('total_co2e'))['total'] or 0
         
-        s2 = Scope2Data.objects.filter(
+        s2 = Scope2Excel.objects.filter(
             firm=selected_firm,
             period_year=target_date.year,
             period_month=target_date.month
         ).aggregate(total=Sum('total_co2e'))['total'] or 0
         
-        s3 = Scope3Data.objects.filter(
+        s3 = Scope3Excel.objects.filter(
             firm=selected_firm,
             period_year=target_date.year,
             period_month=target_date.month
         ).aggregate(total=Sum('total_co2e'))['total'] or 0
         
-        s4 = Scope4Data.objects.filter(
+        s4 = Scope4Excel.objects.filter(
             firm=selected_firm,
             period_year=target_date.year,
             period_month=target_date.month
@@ -207,7 +207,7 @@ def dashboard_view(request):
     recent_entries = []
     
     # Scope 1 girişleri
-    for entry in Scope1Data.objects.filter(firm=selected_firm).order_by('-created_at')[:3]:
+    for entry in Scope1Excel.objects.filter(firm=selected_firm).order_by('-created_at')[:3]:
         recent_entries.append({
             'created_at': entry.created_at,
             'scope': 'Kapsam 1',
@@ -219,7 +219,7 @@ def dashboard_view(request):
         })
     
     # Scope 2 girişleri
-    for entry in Scope2Data.objects.filter(firm=selected_firm).order_by('-created_at')[:3]:
+    for entry in Scope2Excel.objects.filter(firm=selected_firm).order_by('-created_at')[:3]:
         recent_entries.append({
             'created_at': entry.created_at,
             'scope': 'Kapsam 2',
@@ -264,7 +264,7 @@ def dashboard_view(request):
 
 # KAPSAM 1 VIEW'LARI
 @login_required
-@permission_required('carbon.add_scope1data', raise_exception=True)
+@permission_required('carbon.add_Scope1Excel', raise_exception=True)
 def scope1_create_view(request):
     """Kapsam 1 veri girişi"""
     # Kullanıcının firmasını al
@@ -276,7 +276,7 @@ def scope1_create_view(request):
         return redirect('carbon:dashboard')
     
     if request.method == 'POST':
-        form = Scope1DataForm(request.POST, firm=selected_firm)
+        form = Scope1ExcelForm(request.POST, firm=selected_firm)
         if form.is_valid():
             scope1_data = form.save(commit=False)
             scope1_data.created_by = request.user.user if hasattr(request.user, 'user') else request.user
@@ -284,7 +284,7 @@ def scope1_create_view(request):
             messages.success(request, "Kapsam 1 verisi başarıyla kaydedildi.")
             return redirect('carbon:dashboard')
     else:
-        form = Scope1DataForm(firm=selected_firm)
+        form = Scope1ExcelForm(firm=selected_firm)
     
     return render(request, 'carbon/scope1_form.html', {
         'form': form,
@@ -293,10 +293,10 @@ def scope1_create_view(request):
     })
 
 @login_required
-@permission_required('carbon.change_scope1data', raise_exception=True)
+@permission_required('carbon.change_Scope1Excel', raise_exception=True)
 def scope1_update_view(request, pk):
     """Kapsam 1 veri güncelleme"""
-    scope1_data = get_object_or_404(Scope1Data, pk=pk)
+    scope1_data = get_object_or_404(Scope1Excel, pk=pk)
     
     # Yetki kontrolü
     user_firms = Firm.objects.filter(user_associations__user=request.user.user if hasattr(request.user, 'user') else request.user)
@@ -304,13 +304,13 @@ def scope1_update_view(request, pk):
         raise PermissionDenied
     
     if request.method == 'POST':
-        form = Scope1DataForm(request.POST, instance=scope1_data, firm=scope1_data.firm)
+        form = Scope1ExcelForm(request.POST, instance=scope1_data, firm=scope1_data.firm)
         if form.is_valid():
             form.save()
             messages.success(request, "Kapsam 1 verisi güncellendi.")
             return redirect('carbon:dashboard')
     else:
-        form = Scope1DataForm(instance=scope1_data, firm=scope1_data.firm)
+        form = Scope1ExcelForm(instance=scope1_data, firm=scope1_data.firm)
     
     return render(request, 'carbon/scope1_form.html', {
         'form': form,
@@ -320,7 +320,7 @@ def scope1_update_view(request, pk):
 
 # KAPSAM 2 VIEW'LARI
 @login_required
-@permission_required('carbon.add_scope2data', raise_exception=True)
+@permission_required('carbon.add_Scope2Excel', raise_exception=True)
 def scope2_create_view(request):
     """Kapsam 2 veri girişi"""
     user_firms = Firm.objects.filter(user_associations__user=request.user.user if hasattr(request.user, 'user') else request.user)
@@ -331,7 +331,7 @@ def scope2_create_view(request):
         return redirect('carbon:dashboard')
     
     if request.method == 'POST':
-        form = Scope2DataForm(request.POST, firm=selected_firm)
+        form = Scope2ExcelForm(request.POST, firm=selected_firm)
         if form.is_valid():
             scope2_data = form.save(commit=False)
             scope2_data.created_by = request.user.user if hasattr(request.user, 'user') else request.user
@@ -339,7 +339,7 @@ def scope2_create_view(request):
             messages.success(request, "Kapsam 2 verisi başarıyla kaydedildi.")
             return redirect('carbon:dashboard')
     else:
-        form = Scope2DataForm(firm=selected_firm)
+        form = Scope2ExcelForm(firm=selected_firm)
     
     return render(request, 'carbon/scope2_form.html', {
         'form': form,
@@ -385,7 +385,7 @@ def process_scope1_excel(df, user):
             fuel_type = FuelType.objects.get(name=row['Yakıt Türü'])
             firm = Firm.objects.get(name=row['Firma'])
             
-            Scope1Data.objects.create(
+            Scope1Excel.objects.create(
                 firm=firm,
                 combustion_type='stationary',
                 location=row['Lokasyon'],
@@ -763,7 +763,7 @@ def fueltype_delete_view(request, pk):
 
 # KAPSAM 1 LİSTE VIEW'I
 @login_required
-@permission_required('carbon.view_scope1data', raise_exception=True)
+@permission_required('carbon.view_Scope1Excel', raise_exception=True)
 def scope1_list_view(request):
     """Kapsam 1 verilerini listele"""
     user_firms = Firm.objects.filter(
@@ -777,9 +777,9 @@ def scope1_list_view(request):
         selected_firm = user_firms.first()
     
     if selected_firm:
-        scope1_data = Scope1Data.objects.filter(firm=selected_firm).order_by('-period_year', '-period_month')
+        scope1_data = Scope1Excel.objects.filter(firm=selected_firm).order_by('-period_year', '-period_month')
     else:
-        scope1_data = Scope1Data.objects.none()
+        scope1_data = Scope1Excel.objects.none()
     
     return render(request, 'carbon/scope1_list.html', {
         'scope1_data': scope1_data,
@@ -788,10 +788,10 @@ def scope1_list_view(request):
     })
 
 @login_required
-@permission_required('carbon.delete_scope1data', raise_exception=True)
+@permission_required('carbon.delete_Scope1Excel', raise_exception=True)
 def scope1_delete_view(request, pk):
     """Kapsam 1 veri silme"""
-    scope1_data = get_object_or_404(Scope1Data, pk=pk)
+    scope1_data = get_object_or_404(Scope1Excel, pk=pk)
     
     # Yetki kontrolü
     user_firms = Firm.objects.filter(
@@ -811,7 +811,7 @@ def scope1_delete_view(request, pk):
 
 # KAPSAM 2 VIEW'LARI
 @login_required
-@permission_required('carbon.view_scope2data', raise_exception=True)
+@permission_required('carbon.view_Scope2Excel', raise_exception=True)
 def scope2_list_view(request):
     """Kapsam 2 verilerini listele"""
     user_firms = Firm.objects.filter(
@@ -825,9 +825,9 @@ def scope2_list_view(request):
         selected_firm = user_firms.first()
     
     if selected_firm:
-        scope2_data = Scope2Data.objects.filter(firm=selected_firm).order_by('-period_year', '-period_month')
+        scope2_data = Scope2Excel.objects.filter(firm=selected_firm).order_by('-period_year', '-period_month')
     else:
-        scope2_data = Scope2Data.objects.none()
+        scope2_data = Scope2Excel.objects.none()
     
     return render(request, 'carbon/scope2_list.html', {
         'scope2_data': scope2_data,
@@ -836,10 +836,10 @@ def scope2_list_view(request):
     })
 
 @login_required
-@permission_required('carbon.change_scope2data', raise_exception=True)
+@permission_required('carbon.change_Scope2Excel', raise_exception=True)
 def scope2_update_view(request, pk):
     """Kapsam 2 veri güncelleme"""
-    scope2_data = get_object_or_404(Scope2Data, pk=pk)
+    scope2_data = get_object_or_404(Scope2Excel, pk=pk)
     
     # Yetki kontrolü
     user_firms = Firm.objects.filter(
@@ -849,13 +849,13 @@ def scope2_update_view(request, pk):
         raise PermissionDenied
     
     if request.method == 'POST':
-        form = Scope2DataForm(request.POST, instance=scope2_data, firm=scope2_data.firm)
+        form = Scope2ExcelForm(request.POST, instance=scope2_data, firm=scope2_data.firm)
         if form.is_valid():
             form.save()
             messages.success(request, "Kapsam 2 verisi güncellendi.")
             return redirect('carbon:scope2-list')
     else:
-        form = Scope2DataForm(instance=scope2_data, firm=scope2_data.firm)
+        form = Scope2ExcelForm(instance=scope2_data, firm=scope2_data.firm)
     
     return render(request, 'carbon/scope2_form.html', {
         'form': form,
@@ -864,10 +864,10 @@ def scope2_update_view(request, pk):
     })
 
 @login_required
-@permission_required('carbon.delete_scope2data', raise_exception=True)
+@permission_required('carbon.delete_Scope2Excel', raise_exception=True)
 def scope2_delete_view(request, pk):
     """Kapsam 2 veri silme"""
-    scope2_data = get_object_or_404(Scope2Data, pk=pk)
+    scope2_data = get_object_or_404(Scope2Excel, pk=pk)
     
     # Yetki kontrolü
     user_firms = Firm.objects.filter(
@@ -887,7 +887,7 @@ def scope2_delete_view(request, pk):
 
 # KAPSAM 3 VIEW'LARI
 @login_required
-@permission_required('carbon.view_scope3data', raise_exception=True)
+@permission_required('carbon.view_Scope3Excel', raise_exception=True)
 def scope3_list_view(request):
     """Kapsam 3 verilerini listele"""
     user_firms = Firm.objects.filter(
@@ -901,9 +901,9 @@ def scope3_list_view(request):
         selected_firm = user_firms.first()
     
     if selected_firm:
-        scope3_data = Scope3Data.objects.filter(firm=selected_firm).order_by('-period_year', '-period_month')
+        scope3_data = Scope3Excel.objects.filter(firm=selected_firm).order_by('-period_year', '-period_month')
     else:
-        scope3_data = Scope3Data.objects.none()
+        scope3_data = Scope3Excel.objects.none()
     
     return render(request, 'carbon/scope3_list.html', {
         'scope3_data': scope3_data,
@@ -912,7 +912,7 @@ def scope3_list_view(request):
     })
 
 @login_required
-@permission_required('carbon.add_scope3data', raise_exception=True)
+@permission_required('carbon.add_Scope3Excel', raise_exception=True)
 def scope3_create_view(request):
     """Kapsam 3 veri girişi"""
     user_firms = Firm.objects.filter(
@@ -925,7 +925,7 @@ def scope3_create_view(request):
         return redirect('carbon:dashboard')
     
     if request.method == 'POST':
-        form = Scope3DataForm(request.POST, firm=selected_firm)
+        form = Scope3ExcelForm(request.POST, firm=selected_firm)
         if form.is_valid():
             scope3_data = form.save(commit=False)
             scope3_data.created_by = request.user.user if hasattr(request.user, 'user') else request.user
@@ -933,7 +933,7 @@ def scope3_create_view(request):
             messages.success(request, "Kapsam 3 verisi başarıyla kaydedildi.")
             return redirect('carbon:scope3-list')
     else:
-        form = Scope3DataForm(firm=selected_firm)
+        form = Scope3ExcelForm(firm=selected_firm)
     
     return render(request, 'carbon/scope3_form.html', {
         'form': form,
@@ -942,10 +942,10 @@ def scope3_create_view(request):
     })
 
 @login_required
-@permission_required('carbon.change_scope3data', raise_exception=True)
+@permission_required('carbon.change_Scope3Excel', raise_exception=True)
 def scope3_update_view(request, pk):
     """Kapsam 3 veri güncelleme"""
-    scope3_data = get_object_or_404(Scope3Data, pk=pk)
+    scope3_data = get_object_or_404(Scope3Excel, pk=pk)
     
     # Yetki kontrolü
     user_firms = Firm.objects.filter(
@@ -955,13 +955,13 @@ def scope3_update_view(request, pk):
         raise PermissionDenied
     
     if request.method == 'POST':
-        form = Scope3DataForm(request.POST, instance=scope3_data, firm=scope3_data.firm)
+        form = Scope3ExcelForm(request.POST, instance=scope3_data, firm=scope3_data.firm)
         if form.is_valid():
             form.save()
             messages.success(request, "Kapsam 3 verisi güncellendi.")
             return redirect('carbon:scope3-list')
     else:
-        form = Scope3DataForm(instance=scope3_data, firm=scope3_data.firm)
+        form = Scope3ExcelForm(instance=scope3_data, firm=scope3_data.firm)
     
     return render(request, 'carbon/scope3_form.html', {
         'form': form,
@@ -970,10 +970,10 @@ def scope3_update_view(request, pk):
     })
 
 @login_required
-@permission_required('carbon.delete_scope3data', raise_exception=True)
+@permission_required('carbon.delete_Scope3Excel', raise_exception=True)
 def scope3_delete_view(request, pk):
     """Kapsam 3 veri silme"""
-    scope3_data = get_object_or_404(Scope3Data, pk=pk)
+    scope3_data = get_object_or_404(Scope3Excel, pk=pk)
     
     # Yetki kontrolü
     user_firms = Firm.objects.filter(
@@ -993,7 +993,7 @@ def scope3_delete_view(request, pk):
 
 # KAPSAM 4 VIEW'LARI
 @login_required
-@permission_required('carbon.view_scope4data', raise_exception=True)
+@permission_required('carbon.view_Scope4Excel', raise_exception=True)
 def scope4_list_view(request):
     """Kapsam 4 verilerini listele"""
     user_firms = Firm.objects.filter(
@@ -1007,9 +1007,9 @@ def scope4_list_view(request):
         selected_firm = user_firms.first()
     
     if selected_firm:
-        scope4_data = Scope4Data.objects.filter(firm=selected_firm).order_by('-period_year', '-period_month')
+        scope4_data = Scope4Excel.objects.filter(firm=selected_firm).order_by('-period_year', '-period_month')
     else:
-        scope4_data = Scope4Data.objects.none()
+        scope4_data = Scope4Excel.objects.none()
     
     return render(request, 'carbon/scope4_list.html', {
         'scope4_data': scope4_data,
@@ -1018,7 +1018,7 @@ def scope4_list_view(request):
     })
 
 @login_required
-@permission_required('carbon.add_scope4data', raise_exception=True)
+@permission_required('carbon.add_Scope4Excel', raise_exception=True)
 def scope4_create_view(request):
     """Kapsam 4 veri girişi"""
     user_firms = Firm.objects.filter(
@@ -1031,7 +1031,7 @@ def scope4_create_view(request):
         return redirect('carbon:dashboard')
     
     if request.method == 'POST':
-        form = Scope4DataForm(request.POST, firm=selected_firm)
+        form = Scope4ExcelForm(request.POST, firm=selected_firm)
         if form.is_valid():
             scope4_data = form.save(commit=False)
             scope4_data.created_by = request.user.user if hasattr(request.user, 'user') else request.user
@@ -1039,7 +1039,7 @@ def scope4_create_view(request):
             messages.success(request, "Kapsam 4 verisi başarıyla kaydedildi.")
             return redirect('carbon:scope4-list')
     else:
-        form = Scope4DataForm(firm=selected_firm)
+        form = Scope4ExcelForm(firm=selected_firm)
     
     return render(request, 'carbon/scope4_form.html', {
         'form': form,
@@ -1048,10 +1048,10 @@ def scope4_create_view(request):
     })
 
 @login_required
-@permission_required('carbon.change_scope4data', raise_exception=True)
+@permission_required('carbon.change_Scope4Excel', raise_exception=True)
 def scope4_update_view(request, pk):
     """Kapsam 4 veri güncelleme"""
-    scope4_data = get_object_or_404(Scope4Data, pk=pk)
+    scope4_data = get_object_or_404(Scope4Excel, pk=pk)
     
     # Yetki kontrolü
     user_firms = Firm.objects.filter(
@@ -1061,13 +1061,13 @@ def scope4_update_view(request, pk):
         raise PermissionDenied
     
     if request.method == 'POST':
-        form = Scope4DataForm(request.POST, instance=scope4_data, firm=scope4_data.firm)
+        form = Scope4ExcelForm(request.POST, instance=scope4_data, firm=scope4_data.firm)
         if form.is_valid():
             form.save()
             messages.success(request, "Kapsam 4 verisi güncellendi.")
             return redirect('carbon:scope4-list')
     else:
-        form = Scope4DataForm(instance=scope4_data, firm=scope4_data.firm)
+        form = Scope4ExcelForm(instance=scope4_data, firm=scope4_data.firm)
     
     return render(request, 'carbon/scope4_form.html', {
         'form': form,
@@ -1076,10 +1076,10 @@ def scope4_update_view(request, pk):
     })
 
 @login_required
-@permission_required('carbon.delete_scope4data', raise_exception=True)
+@permission_required('carbon.delete_Scope4Excel', raise_exception=True)
 def scope4_delete_view(request, pk):
     """Kapsam 4 veri silme"""
-    scope4_data = get_object_or_404(Scope4Data, pk=pk)
+    scope4_data = get_object_or_404(Scope4Excel, pk=pk)
     
     # Yetki kontrolü
     user_firms = Firm.objects.filter(
@@ -1681,7 +1681,7 @@ def carbon_input(request, firm_id):
             ).first()
             
             if emission_factor:
-                Scope1Data.objects.update_or_create(
+                Scope1Excel.objects.update_or_create(
                     firm=firm,
                     location=location,
                     fuel_name=fuel_name,
@@ -1702,7 +1702,7 @@ def carbon_input(request, firm_id):
             facility = request.POST.get('facility_name')
             electricity = Decimal(request.POST.get('electricity_kwh', '0'))
             
-            Scope2Data.objects.update_or_create(
+            Scope2Excel.objects.update_or_create(
                 firm=firm,
                 facility_name=facility,
                 period_year=year,
@@ -1730,7 +1730,7 @@ def carbon_input(request, firm_id):
             ).first()
             
             if emission_factor:
-                Scope4Data.objects.update_or_create(
+                Scope4Excel.objects.update_or_create(
                     firm=firm,
                     product_name=product_name,
                     period_year=year,
@@ -1756,19 +1756,19 @@ def carbon_input(request, firm_id):
     current_year = request.GET.get('year', 2025)
     current_month = request.GET.get('month', 1)
     
-    scope1_data = Scope1Data.objects.filter(
+    scope1_data = Scope1Excel.objects.filter(
         firm=firm,
         period_year=current_year,
         period_month=current_month
     )
     
-    scope2_data = Scope2Data.objects.filter(
+    scope2_data = Scope2Excel.objects.filter(
         firm=firm,
         period_year=current_year,
         period_month=current_month
     )
     
-    scope4_data = Scope4Data.objects.filter(
+    scope4_data = Scope4Excel.objects.filter(
         firm=firm,
         period_year=current_year,
         period_month=current_month
@@ -1828,25 +1828,25 @@ def report_detail(request, report_id):
                 return redirect('carbon:dashboard')
     
     # Kapsam verilerini getir
-    scope1_data = Scope1Data.objects.filter(
+    scope1_data = Scope1Excel.objects.filter(
         firm=report.firm,
         period_year=report.report_year,
         period_month=report.report_month
     )
     
-    scope2_data = Scope2Data.objects.filter(
+    scope2_data = Scope2Excel.objects.filter(
         firm=report.firm,
         period_year=report.report_year,
         period_month=report.report_month
     )
     
-    scope3_data = Scope3Data.objects.filter(
+    scope3_data = Scope3Excel.objects.filter(
         firm=report.firm,
         period_year=report.report_year,
         period_month=report.report_month
     )
     
-    scope4_data = Scope4Data.objects.filter(
+    scope4_data = Scope4Excel.objects.filter(
         firm=report.firm,
         period_year=report.report_year,
         period_month=report.report_month
