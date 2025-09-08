@@ -1,34 +1,197 @@
+<!-- templates/carbon/report_list.html -->
 {% extends 'base.html' %}
+{% load static %}
 
-{% block title %}Karbon Rapor Listesi - Ekonaz Portal{% endblock %}
+{% block title %}Karbon Raporları{% endblock %}
 
 {% block content %}
-    <h1>Karbon Raporları</h1>
+<div class="container-fluid py-4">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <h2>Karbon Emisyon Raporları</h2>
+            <p class="text-muted">Firma bazlı karbon ayak izi hesaplama raporları</p>
+        </div>
+        <div class="col-md-4 text-end">
+            <a href="{% url 'carbon:report-generate' %}" class="btn btn-success">
+                <i class="fas fa-plus"></i> Yeni Rapor Oluştur
+            </a>
+        </div>
+    </div>
 
-    <a href="{% url 'carbon:report-generate' %}" role="button">Yeni Rapor Oluştur</a>
+    <!-- Firma Seçimi -->
+    {% if user_firms %}
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-3 align-items-center">
+                <div class="col-auto">
+                    <label class="form-label">Firma Seçin:</label>
+                </div>
+                <div class="col-md-6">
+                    <select name="firm_id" class="form-select" onchange="this.form.submit()">
+                        <option value="">-- Firma Seçin --</option>
+                        {% for firm in user_firms %}
+                        <option value="{{ firm.id }}" {% if firm == selected_firm %}selected{% endif %}>
+                            {{ firm.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                {% if selected_firm %}
+                <div class="col-auto">
+                    <span class="badge bg-info">
+                        Toplam Emisyon: {{ total_emissions|floatformat:2 }} tCO2e
+                    </span>
+                </div>
+                {% endif %}
+            </form>
+        </div>
+    </div>
+    {% endif %}
 
-    <figure style="margin-top: 2rem;">
-        <table>
-            <thead>
-                <tr>
-                    <th>Rapor Tarihi</th>
-                    <th>Toplam CO2e (ton)</th>
-                    <th>Doğrudan Oran (%)</th>
-                    <th>Dolaylı Oran (%)</th>
-                    <th>İşlemler</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for report in reports %}
-                <tr>
-                    <td>{{ report.report_date }}</td>
-                    <td>{{ report.total_co2e|floatformat:2 }}</td>
-                    <td>{{ report.direct_ratio|floatformat:2 }}</td>
-                    <td>{{ report.indirect_ratio|floatformat:2 }}</td>
-                    <td><a href="{% url 'carbon:report-detail' report.pk %}">Detay Görüntüle</a></td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </figure>
+    <!-- Raporlar Tablosu -->
+    {% if selected_firm %}
+    <div class="card">
+        <div class="card-header">
+            <h5 class="mb-0">{{ selected_firm.name }} - Karbon Raporları</h5>
+        </div>
+        <div class="card-body">
+            {% if reports %}
+            <div class="table-responsive">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>Rapor Tarihi</th>
+                            <th>Dönem</th>
+                            <th>Kapsam 1</th>
+                            <th>Kapsam 2</th>
+                            <th>Kapsam 3</th>
+                            <th>Kapsam 4</th>
+                            <th>Toplam (tCO2e)</th>
+                            <th>Doğrudan %</th>
+                            <th>Dolaylı %</th>
+                            <th>İşlemler</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for report in reports %}
+                        <tr>
+                            <td>{{ report.report_date|date:"d.m.Y" }}</td>
+                            <td>
+                                {{ report.report_period_start|date:"d.m.Y" }} - 
+                                {{ report.report_period_end|date:"d.m.Y" }}
+                            </td>
+                            <td>{{ report.scope1_total|floatformat:2 }}</td>
+                            <td>{{ report.scope2_total|floatformat:2 }}</td>
+                            <td>{{ report.scope3_total|floatformat:2 }}</td>
+                            <td>{{ report.scope4_total|floatformat:2 }}</td>
+                            <td><strong>{{ report.total_co2e|floatformat:2 }}</strong></td>
+                            <td>
+                                <div class="progress" style="height: 20px;">
+                                    <div class="progress-bar bg-danger" role="progressbar" 
+                                         style="width: {{ report.direct_ratio }}%">
+                                        {{ report.direct_ratio|floatformat:1 }}%
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                <div class="progress" style="height: 20px;">
+                                    <div class="progress-bar bg-warning" role="progressbar" 
+                                         style="width: {{ report.indirect_ratio }}%">
+                                        {{ report.indirect_ratio|floatformat:1 }}%
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                <a href="{% url 'carbon:report-detail' report.id %}" 
+                                   class="btn btn-sm btn-info" title="Detay">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                                <a href="{% url 'carbon:report-download' report.id %}" 
+                                   class="btn btn-sm btn-success" title="İndir">
+                                    <i class="fas fa-download"></i>
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle"></i>
+                Bu firma için henüz karbon raporu oluşturulmamış.
+                <a href="{% url 'carbon:report-generate' %}" class="alert-link">Yeni rapor oluştur</a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Son Rapor Özeti -->
+    {% if latest_report %}
+    <div class="card mt-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">Son Rapor Özeti ({{ latest_report.report_date|date:"d.m.Y" }})</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <canvas id="scopeChart"></canvas>
+                </div>
+                <div class="col-md-6">
+                    <h6>Kapsam Dağılımı:</h6>
+                    <ul class="list-unstyled">
+                        <li><span class="badge bg-danger">Kapsam 1:</span> {{ latest_report.scope1_total|floatformat:2 }} tCO2e</li>
+                        <li><span class="badge bg-warning">Kapsam 2:</span> {{ latest_report.scope2_total|floatformat:2 }} tCO2e</li>
+                        <li><span class="badge bg-info">Kapsam 3:</span> {{ latest_report.scope3_total|floatformat:2 }} tCO2e</li>
+                        <li><span class="badge bg-success">Kapsam 4:</span> {{ latest_report.scope4_total|floatformat:2 }} tCO2e</li>
+                        <li class="mt-2"><strong>Toplam:</strong> {{ latest_report.total_co2e|floatformat:2 }} tCO2e</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+    // Grafik çizimi
+    var ctx = document.getElementById('scopeChart').getContext('2d');
+    var myChart = new Chart(ctx, {
+        type: 'pie',
+        data: {
+            labels: ['Kapsam 1', 'Kapsam 2', 'Kapsam 3', 'Kapsam 4'],
+            datasets: [{
+                data: [
+                    {{ latest_report.scope1_total|floatformat:2 }},
+                    {{ latest_report.scope2_total|floatformat:2 }},
+                    {{ latest_report.scope3_total|floatformat:2 }},
+                    {{ latest_report.scope4_total|floatformat:2 }}
+                ],
+                backgroundColor: [
+                    'rgba(255, 99, 132, 0.8)',
+                    'rgba(255, 206, 86, 0.8)',
+                    'rgba(54, 162, 235, 0.8)',
+                    'rgba(75, 192, 192, 0.8)'
+                ]
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                }
+            }
+        }
+    });
+    </script>
+    {% endif %}
+
+    {% else %}
+    <div class="alert alert-warning">
+        <i class="fas fa-exclamation-triangle"></i>
+        Lütfen önce bir firma seçin.
+    </div>
+    {% endif %}
+</div>
 {% endblock %}

@@ -1,0 +1,332 @@
+# Karbon Ayak İzi Hesaplama Modülü - Django Models
+
+from django.db import models
+from django.contrib.auth.models import User
+from django.core.validators import MinValueValidator
+from decimal import Decimal
+import datetime
+
+# 1. EMİSYON FAKTÖRLERİ (Zaman Aralıklı Sabit Katsayılar)
+class EmissionFactor(models.Model):
+    """Zaman aralıklı emisyon faktörleri tablosu"""
+    
+    FACTOR_TYPES = [
+        ('FUEL', 'Yakıt'),
+        ('ELECTRICITY', 'Elektrik'),
+        ('MATERIAL', 'Malzeme'),
+        ('TRANSPORT', 'Ulaşım'),
+    ]
+    
+    name = models.CharField(max_length=100, verbose_name="Faktör Adı")
+    factor_type = models.CharField(max_length=20, choices=FACTOR_TYPES)
+    unit = models.CharField(max_length=50, verbose_name="Birim")
+    
+    # Emisyon değerleri
+    co2_factor = models.DecimalField(max_digits=12, decimal_places=6, 
+                                     validators=[MinValueValidator(0)])
+    ch4_factor = models.DecimalField(max_digits=12, decimal_places=6, 
+                                     validators=[MinValueValidator(0)], default=0)
+    n2o_factor = models.DecimalField(max_digits=12, decimal_places=6, 
+                                     validators=[MinValueValidator(0)], default=0)
+    
+    # Yardımcı katsayılar
+    nkd = models.DecimalField(max_digits=10, decimal_places=4, 
+                              null=True, blank=True, verbose_name="Net Kalorifik Değer")
+    density = models.DecimalField(max_digits=10, decimal_places=4, 
+                                 null=True, blank=True, verbose_name="Yoğunluk")
+    
+    # Zaman aralığı
+    valid_from = models.DateField(verbose_name="Geçerlilik Başlangıcı")
+    valid_to = models.DateField(null=True, blank=True, verbose_name="Geçerlilik Bitişi")
+    
+    # Metadata
+    source = models.CharField(max_length=200, verbose_name="Kaynak")
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'carbon_emission_factors'
+        ordering = ['-valid_from', 'name']
+        unique_together = ['name', 'valid_from']
+    
+    def __str__(self):
+        return f"{self.name} ({self.valid_from})"
+    
+    def is_valid(self, date=None):
+        """Belirli bir tarihte geçerli mi kontrol et"""
+        if date is None:
+            date = datetime.date.today()
+        
+        if self.valid_from <= date:
+            if self.valid_to is None or self.valid_to >= date:
+                return True
+        return False
+
+
+# 2. FİRMA KARBON RAPORLARI
+class CompanyCarbonReport(models.Model):
+    """Firma bazlı karbon raporları"""
+    
+    company = models.ForeignKey('Company', on_delete=models.CASCADE, 
+                                related_name='carbon_reports')
+    report_year = models.IntegerField()
+    report_month = models.IntegerField(null=True, blank=True)
+    
+    # Dönem bilgisi
+    start_date = models.DateField()
+    end_date = models.DateField()
+    
+    # Rapor durumu
+    STATUS_CHOICES = [
+        ('DRAFT', 'Taslak'),
+        ('COMPLETED', 'Tamamlandı'),
+        ('APPROVED', 'Onaylandı'),
+    ]
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='DRAFT')
+    
+    # Toplam emisyonlar (tCO2e)
+    scope1_total = models.DecimalField(max_digits=12, decimal_places=4, default=0)
+    scope2_total = models.DecimalField(max_digits=12, decimal_places=4, default=0)
+    scope3_total = models.DecimalField(max_digits=12, decimal_places=4, default=0)
+    scope4_total = models.DecimalField(max_digits=12, decimal_places=4, default=0)
+    scope5_total = models.DecimalField(max_digits=12, decimal_places=4, default=0)
+    scope6_total = models.DecimalField(max_digits=12, decimal_places=4, default=0)
+    total_emission = models.DecimalField(max_digits=12, decimal_places=4, default=0)
+    
+    # Metadata
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    notes = models.TextField(blank=True)
+    
+    class Meta:
+        db_table = 'carbon_company_reports'
+        ordering = ['-report_year', '-report_month']
+        unique_together = ['company', 'report_year', 'report_month']
+    
+    def __str__(self):
+        return f"{self.company.name} - {self.report_year}/{self.report_month or 'Yıllık'}"
+    
+    def calculate_total(self):
+        """Toplam emisyonu hesapla"""
+        self.total_emission = (
+            self.scope1_total + self.scope2_total + self.scope3_total +
+            self.scope4_total + self.scope5_total + self.scope6_total
+        )
+        return self.total_emission
+
+
+# 3. KAPSAM 1 - DOĞRUDAN EMİSYONLAR
+class Scope1Emission(models.Model):
+    """Kapsam 1 - Sabit ve mobil yanma emisyonları"""
+    
+    report = models.ForeignKey(CompanyCarbonReport, on_delete=models.CASCADE,
+                               related_name='scope1_emissions')
+    
+    EMISSION_TYPE = [
+        ('STATIONARY', 'Sabit Yanma'),
+        ('MOBILE', 'Mobil Yanma'),
+        ('PROCESS', 'Proses Emisyonları'),
+    ]
+    emission_type = models.CharField(max_length=20, choices=EMISSION_TYPE)
+    
+    # Girdi verileri
+    fuel_name = models.CharField(max_length=100, verbose_name="Yakıt/Kaynak Adı")
+    consumption_value = models.DecimalField(max_digits=12, decimal_places=4,
+                                           verbose_name="Tüketim Değeri")
+    consumption_unit = models.CharField(max_length=20, verbose_name="Birim")
+    
+    # Kullanılan emisyon faktörü
+    emission_factor = models.ForeignKey(EmissionFactor, on_delete=models.PROTECT)
+    
+    # Hesaplanan emisyonlar
+    co2_emission = models.DecimalField(max_digits=12, decimal_places=4, default=0)
+    ch4_emission = models.DecimalField(max_digits=12, decimal_places=4, default=0)
+    n2o_emission = models.DecimalField(max_digits=12, decimal_places=4, default=0)
+    co2e_total = models.DecimalField(max_digits=12, decimal_places=4, default=0)
+    
+    # GWP değerleri (hesaplama anındaki)
+    gwp_ch4 = models.DecimalField(max_digits=6, decimal_places=2, default=27.9)
+    gwp_n2o = models.DecimalField(max_digits=6, decimal_places=2, default=273)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    def calculate_emissions(self):
+        """Emisyonları hesapla"""
+        ef = self.emission_factor
+        
+        # Temel hesaplama (formül Excel'deki gibi)
+        multiplier = Decimal('0.000000001')  # 10^-9
+        
+        if ef.nkd and ef.density:
+            # Yakıt için hesaplama
+            self.co2_emission = (
+                self.consumption_value * ef.co2_factor * ef.nkd * ef.density * multiplier
+            )
+            self.ch4_emission = (
+                self.consumption_value * ef.ch4_factor * ef.nkd * ef.density * multiplier
+            )
+            self.n2o_emission = (
+                self.consumption_value * ef.n2o_factor * ef.nkd * ef.density * multiplier
+            )
+        
+        # CO2e hesaplama
+        self.co2e_total = (
+            self.co2_emission + 
+            (self.ch4_emission * self.gwp_ch4) + 
+            (self.n2o_emission * self.gwp_n2o)
+        )
+        
+        return self.co2e_total
+    
+    def save(self, *args, **kwargs):
+        self.calculate_emissions()
+        super().save(*args, **kwargs)
+
+
+# 4. KAPSAM 2 - İTHAL EDİLEN ENERJİ
+class Scope2Emission(models.Model):
+    """Kapsam 2 - İthal edilen enerji emisyonları"""
+    
+    report = models.ForeignKey(CompanyCarbonReport, on_delete=models.CASCADE,
+                               related_name='scope2_emissions')
+    
+    # Elektrik tüketimi
+    facility_name = models.CharField(max_length=100, verbose_name="Tesis/Bölüm")
+    electricity_kwh = models.DecimalField(max_digits=12, decimal_places=2,
+                                         verbose_name="Elektrik Tüketimi (kWh)")
+    
+    # Emisyon faktörü
+    emission_factor = models.ForeignKey(EmissionFactor, on_delete=models.PROTECT,
+                                       limit_choices_to={'factor_type': 'ELECTRICITY'})
+    
+    # Hesaplanan emisyon
+    co2e_total = models.DecimalField(max_digits=12, decimal_places=4, default=0,
+                                     verbose_name="Toplam CO2e (ton)")
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    def calculate_emissions(self):
+        """Elektrik emisyonunu hesapla"""
+        # kWh -> MWh dönüşümü
+        electricity_mwh = self.electricity_kwh / 1000
+        
+        # CO2e = MWh * EmisyonFaktörü
+        self.co2e_total = electricity_mwh * self.emission_factor.co2_factor
+        
+        return self.co2e_total
+    
+    def save(self, *args, **kwargs):
+        self.calculate_emissions()
+        super().save(*args, **kwargs)
+
+
+# 5. KAPSAM 3 - ULAŞIM
+class Scope3Emission(models.Model):
+    """Kapsam 3 - Ulaşım kaynaklı emisyonlar"""
+    
+    report = models.ForeignKey(CompanyCarbonReport, on_delete=models.CASCADE,
+                               related_name='scope3_emissions')
+    
+    TRANSPORT_TYPE = [
+        ('UPSTREAM', 'Upstream Nakliye'),
+        ('DOWNSTREAM', 'Downstream Nakliye'),
+        ('EMPLOYEE', 'Personel Ulaşımı'),
+        ('BUSINESS', 'İş Seyahatleri'),
+    ]
+    transport_type = models.CharField(max_length=20, choices=TRANSPORT_TYPE)
+    
+    description = models.CharField(max_length=200)
+    
+    # Yakıt tüketimi VEYA mesafe bazlı
+    fuel_consumption = models.DecimalField(max_digits=12, decimal_places=2,
+                                          null=True, blank=True, verbose_name="Yakıt (litre)")
+    distance_km = models.DecimalField(max_digits=12, decimal_places=2,
+                                     null=True, blank=True, verbose_name="Mesafe (km)")
+    vehicle_type = models.CharField(max_length=50, blank=True)
+    
+    # Emisyon faktörü
+    emission_factor = models.ForeignKey(EmissionFactor, on_delete=models.PROTECT)
+    
+    # Hesaplanan emisyon
+    co2e_total = models.DecimalField(max_digits=12, decimal_places=4, default=0)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+
+
+# 6. KAPSAM 4 - SATIN ALINAN ÜRÜNLER
+class Scope4Emission(models.Model):
+    """Kapsam 4 - Satın alınan ürün/malzemeler"""
+    
+    report = models.ForeignKey(CompanyCarbonReport, on_delete=models.CASCADE,
+                               related_name='scope4_emissions')
+    
+    material_name = models.CharField(max_length=100, verbose_name="Malzeme Adı")
+    quantity_kg = models.DecimalField(max_digits=12, decimal_places=2,
+                                     verbose_name="Miktar (kg)")
+    
+    # Emisyon faktörü
+    emission_factor = models.ForeignKey(EmissionFactor, on_delete=models.PROTECT,
+                                       limit_choices_to={'factor_type': 'MATERIAL'})
+    
+    # Hesaplanan emisyon
+    co2e_total = models.DecimalField(max_digits=12, decimal_places=4, default=0)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    def calculate_emissions(self):
+        """Malzeme emisyonunu hesapla"""
+        # kg cinsinden emisyon faktörü ile çarp, ton'a çevir
+        self.co2e_total = (self.quantity_kg * self.emission_factor.co2_factor) / 1000
+        return self.co2e_total
+    
+    def save(self, *args, **kwargs):
+        self.calculate_emissions()
+        super().save(*args, **kwargs)
+
+
+# 7. ÜRÜN BAZLI KARBON DAĞILIMI
+class ProductCarbonAllocation(models.Model):
+    """Ürün bazlı karbon dağılımı"""
+    
+    report = models.ForeignKey(CompanyCarbonReport, on_delete=models.CASCADE,
+                               related_name='product_allocations')
+    
+    product_name = models.CharField(max_length=100)
+    annual_production = models.IntegerField(verbose_name="Yıllık Üretim Adedi")
+    annual_weight_kg = models.DecimalField(max_digits=12, decimal_places=2,
+                                          verbose_name="Yıllık Üretim (kg)")
+    
+    # Dağıtılan karbon
+    allocated_co2e = models.DecimalField(max_digits=12, decimal_places=4,
+                                        verbose_name="Tahsis Edilen CO2e (ton)")
+    co2e_per_unit = models.DecimalField(max_digits=10, decimal_places=6,
+                                       verbose_name="Birim Başına CO2e (ton)")
+    
+    percentage = models.DecimalField(max_digits=5, decimal_places=2,
+                                    verbose_name="Toplam İçindeki Pay (%)")
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    def calculate_allocation(self, total_weight_kg, total_co2e):
+        """Ürüne düşen karbon payını hesapla"""
+        self.percentage = (self.annual_weight_kg / total_weight_kg) * 100
+        self.allocated_co2e = total_co2e * (self.percentage / 100)
+        self.co2e_per_unit = self.allocated_co2e / self.annual_production
+        return self.co2e_per_unit
+
+
+# 8. GWP (Global Warming Potential) DEĞERLERİ
+class GWPValue(models.Model):
+    """Zaman aralıklı GWP değerleri"""
+    
+    gas_name = models.CharField(max_length=20, unique=True)
+    gwp_value = models.DecimalField(max_digits=8, decimal_places=2)
+    valid_from = models.DateField()
+    valid_to = models.DateField(null=True, blank=True)
+    source = models.CharField(max_length=100, verbose_name="Kaynak (IPCC vb.)")
+    
+    class Meta:
+        db_table = 'carbon_gwp_values'
+        ordering = ['-valid_from']
