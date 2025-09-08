@@ -14,6 +14,7 @@ import pandas as pd
 from io import BytesIO
 from core.models import UserFirm, Firm, User  # Firm modelini import etmelisiniz
 
+
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -30,7 +31,8 @@ from .models import (
     CoefficientType, EmissionFactor, FuelType,
     Scope1Data, Scope2Data, Scope3Data, Scope4Data,
     InputCategory, InputData, Report,
-    FuelType, GWPValues, Scope1Excel, Scope2Excel, Scope4Excel, ExcelReport
+    FuelType, GWPValues, Scope1Excel, Scope2Excel, Scope4Excel, ExcelReport,
+    ReportDetail, ProductAllocation
 )
 from .forms import (
     CoefficientTypeForm, EmissionFactorForm, FuelTypeForm,
@@ -1106,6 +1108,14 @@ def report_generate_view(request):
             report_period_end = report_date
             report_period_start = report_date - timedelta(days=365)
             
+            # Kullanıcı bilgisini al
+            if hasattr(request.user, 'user'):
+                generated_by_user = request.user.user
+            elif hasattr(request.user, 'profile'):
+                generated_by_user = request.user.profile
+            else:
+                generated_by_user = None
+            
             # Verileri topla (veritabanından)
             scope1_data = Scope1Data.objects.filter(
                 firm=firm,
@@ -1139,50 +1149,31 @@ def report_generate_view(request):
                 total=Sum('total_co2e')
             )['total'] or 0
             
-            # Toplam emisyon
-            total_emission = scope1_data + scope2_data + scope3_data + scope4_data
+            # Rapor oluştur
+            report = Report.objects.create(
+                firm=firm,
+                report_date=report_date,
+                report_period_start=report_period_start,
+                report_period_end=report_period_end,
+                generated_by=generated_by_user,
+                total_co2e=scope1_data + scope2_data + scope3_data + scope4_data,
+                direct_ratio=(scope1_data + scope2_data) / (scope1_data + scope2_data + scope3_data + scope4_data) * 100 if (scope1_data + scope2_data + scope3_data + scope4_data) > 0 else 0,
+                indirect_ratio=(scope3_data + scope4_data) / (scope1_data + scope2_data + scope3_data + scope4_data) * 100 if (scope1_data + scope2_data + scope3_data + scope4_data) > 0 else 0,
+                scope1_total=scope1_data,
+                scope2_total=scope2_data,
+                scope3_total=scope3_data,
+                scope4_total=scope4_data,
+                scope5_total=0,
+                scope6_total=0,
+            )
             
-            # Direct (Kapsam 1) ve Indirect (Kapsam 2+3) oranları
-            direct_emissions = scope1_data
-            indirect_emissions = scope2_data + scope3_data + scope4_data
-            
-            if total_emission > 0:
-                direct_ratio = (direct_emissions / total_emission) * 100
-                indirect_ratio = (indirect_emissions / total_emission) * 100
-            else:
-                direct_ratio = 0
-                indirect_ratio = 0
-            
-            # Rapor verilerini hazırla (kaydetmeden)
-            report_data = {
-                'firm': firm,
-                'report_date': report_date,
-                'report_period_start': report_period_start,
-                'report_period_end': report_period_end,
-                'scope1_total': scope1_data,
-                'scope2_total': scope2_data,
-                'scope3_total': scope3_data,
-                'scope4_total': scope4_data,
-                'total_emission': total_emission,
-                'direct_ratio': direct_ratio,
-                'indirect_ratio': indirect_ratio,
-            }
-            
-            # Excel'e aktar düğmesine basıldıysa
-            if 'export_excel' in request.POST:
-                return export_report_to_excel(report_data)
-            
-            # Raporu göster
-            return render(request, 'carbon/report_display.html', {
-                'report': report_data,
-                'form': form
-            })
+            messages.success(request, "Rapor başarıyla oluşturuldu!")
+            return redirect('carbon:report-list')
     else:
-        form = ReportForm(user=request.user)
+        form = ReportForm(user=request.user, initial={'report_date': timezone.now().date()})
     
-    return render(request, 'carbon/report_generate.html', {
-        'form': form
-    })
+    # ÖNEMLİ: GET request için mutlaka form'u render et
+    return render(request, 'carbon/report_form.html', {'form': form})
 
 
 def export_report_to_excel(report_data):
@@ -1564,116 +1555,91 @@ def input_list_view(request):
     return render(request, 'carbon/input_list.html', context)
 
 @login_required
+@permission_required('carbon.view_report', raise_exception=True)
 def excel_report_view(request):
-    """Excel formatında karbon raporu görüntüleme"""
-    
-    # Firma seç
-    if request.user.is_superuser:
-        firms = Firm.objects.all()
-    else:
+    """Excel raporu görüntüleme/indirme"""
+    if request.method == 'POST':
+        # Firma seç
+        firm_id = request.POST.get('firm_id')
+        if not firm_id:
+            messages.error(request, "Lütfen bir firma seçin.")
+            return redirect('carbon:excel-report')
+        
+        firm = get_object_or_404(Firm, pk=firm_id)
+        
+        # Yetki kontrolü
         if hasattr(request.user, 'user'):
-            firms = Firm.objects.filter(user_associations__user=request.user.user)
+            user_firms = Firm.objects.filter(user_associations__user=request.user.user)
         else:
-            firms = Firm.objects.none()
-    
-    selected_firm_id = request.GET.get('firm_id')
-    selected_firm = None
-    report = None
-    
-    if selected_firm_id:
-        selected_firm = get_object_or_404(Firm, pk=selected_firm_id)
+            user_firms = Firm.objects.filter(user_associations__user=request.user)
+            
+        if firm not in user_firms:
+            raise PermissionDenied
         
-        # Rapor getir veya oluştur
-        year = int(request.GET.get('year', 2025))
-        month = int(request.GET.get('month', 1))
+        # Rapor parametreleri
+        year = int(request.POST.get('year', datetime.now().year))
+        month = request.POST.get('month')
+        month = int(month) if month else None
         
-        report = ExcelReport.objects.filter(
-            firm=selected_firm,
+        # Hesaplama servisi oluştur
+        from carbon.services import CarbonCalculationService
+        
+        calculator = CarbonCalculationService(
+            firm=firm,
             year=year,
-            month=month
-        ).first()
+            month=month,
+            user=request.user.user if hasattr(request.user, 'user') else request.user
+        )
         
-        if report:
-            # Kapsam detaylarını getir
-            scope1_data = Scope1Excel.objects.filter(
-                firm=selected_firm,
-                year=year,
-                month=month
-            )
-            scope2_data = Scope2Excel.objects.filter(
-                firm=selected_firm,
-                year=year,
-                month=month
-            )
-            scope4_data = Scope4Excel.objects.filter(
-                firm=selected_firm,
-                year=year,
-                month=month
-            )
-        else:
-            scope1_data = scope2_data = scope4_data = None
+        # Rapor oluştur
+        report = calculator.create_report()
+        
+        # Excel oluştur
+        excel_file = calculator.generate_excel_report()
+        
+        # Response oluştur
+        response = HttpResponse(
+            excel_file.getvalue(),
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        filename = f"karbon_raporu_{firm.name}_{year}_{month or 'yillik'}.xlsx"
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        
+        return response
     
-    context = {
-        'firms': firms,
-        'selected_firm': selected_firm,
-        'report': report,
-        'scope1_data': scope1_data,
-        'scope2_data': scope2_data,
-        'scope4_data': scope4_data,
-    }
+    # GET request - form göster
+    if hasattr(request.user, 'user'):
+        user_firms = Firm.objects.filter(user_associations__user=request.user.user)
+    else:
+        user_firms = Firm.objects.filter(user_associations__user=request.user)
     
-    return render(request, 'carbon/excel_report.html', context)
+    return render(request, 'carbon/excel_report_form.html', {
+        'firms': user_firms,
+        'years': range(2020, datetime.now().year + 2),
+        'months': [
+            (1, 'Ocak'), (2, 'Şubat'), (3, 'Mart'),
+            (4, 'Nisan'), (5, 'Mayıs'), (6, 'Haziran'),
+            (7, 'Temmuz'), (8, 'Ağustos'), (9, 'Eylül'),
+            (10, 'Ekim'), (11, 'Kasım'), (12, 'Aralık')
+        ]
+    })
 
 @login_required
 @permission_required('carbon.view_report', raise_exception=True)
 def report_list_view(request):
-    """Rapor listesi görüntüleme"""
-    
-    # Kullanıcının yetkili olduğu firmaları al
-    if request.user.is_superuser:
-        user_firms = Firm.objects.all()
+    """Raporları listele"""
+    # Kullanıcının firmalarını al
+    if hasattr(request.user, 'user'):
+        user_firms = Firm.objects.filter(user_associations__user=request.user.user)
     else:
-        if hasattr(request.user, 'user'):
-            user_profile = request.user.user
-            user_firms = Firm.objects.filter(user_associations__user=user_profile)
-        else:
-            user_firms = Firm.objects.filter(user_associations__user=request.user)
+        user_firms = Firm.objects.filter(user_associations__user=request.user)
     
-    # Firma seçimi
-    selected_firm_id = request.GET.get('firm_id')
-    if selected_firm_id:
-        selected_firm = get_object_or_404(Firm, pk=selected_firm_id)
-        if selected_firm not in user_firms:
-            raise PermissionDenied("Bu firmaya erişim yetkiniz yok!")
-    else:
-        selected_firm = user_firms.first()
+    # Raporları filtrele
+    reports = Report.objects.filter(firm__in=user_firms).order_by('-report_date')
     
-    # Rapor listesi
-    if selected_firm:
-        reports = Report.objects.filter(firm=selected_firm).order_by('-report_date')
-    else:
-        reports = Report.objects.none()
-    
-    # İstatistikler
-    if selected_firm and reports:
-        total_emissions = reports.aggregate(
-            total=Sum('total_co2e')
-        )['total'] or 0
-        
-        latest_report = reports.first()
-    else:
-        total_emissions = 0
-        latest_report = None
-    
-    context = {
-        'reports': reports,
-        'user_firms': user_firms,
-        'selected_firm': selected_firm,
-        'total_emissions': total_emissions,
-        'latest_report': latest_report,
-    }
-    
-    return render(request, 'carbon/report_list.html', context)
+    return render(request, 'carbon/report_list.html', {
+        'reports': reports
+    })
 
 @login_required
 def carbon_dashboard(request):

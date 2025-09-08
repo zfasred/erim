@@ -2,11 +2,13 @@ from django.contrib import admin
 from .models import CoefficientType, EmissionFactor, InputCategory, InputData, Report, FuelType, GWPValues, Scope1Excel, Scope2Excel, Scope4Excel, ExcelReport
 
 
-# YAKIT TÜRLERİ
+# FuelType admin
 @admin.register(FuelType)
 class FuelTypeAdmin(admin.ModelAdmin):
-    list_display = ['name', 'ef_co2', 'ef_ch4', 'ef_n2o', 'nkd', 'density', 'unit']
-    search_fields = ['name']
+    list_display = ['code', 'name', 'category', 'ncv', 'ef_co2', 'valid_from', 'valid_to']
+    list_filter = ['category', 'valid_from']
+    search_fields = ['code', 'name']
+    ordering = ['category', 'name']
 
 # GWP DEĞERLERİ
 @admin.register(GWPValues)
@@ -54,58 +56,47 @@ class ExcelReportAdmin(admin.ModelAdmin):
 class CoefficientTypeAdmin(admin.ModelAdmin):
     list_display = ('name', 'unit')
 
+# EmissionFactor admin
 @admin.register(EmissionFactor)
 class EmissionFactorAdmin(admin.ModelAdmin):
-    list_display = (
-        'name', 
-        'category', 
-        'subcategory',  # YENİ
-        'value', 
-        'unit',
-        'valid_from', 
-        'valid_to',
-        'is_active'  # YENİ
-    )
-    
-    list_filter = (
-        'category',
-        'subcategory',  # YENİ
-        'is_active',  # YENİ
-        'valid_from'
-    )
-    
-    search_fields = ('name', 'category', 'subcategory')
-    
-    list_editable = ('is_active',)  # YENİ - Listeden direkt düzenlenebilir
-    
-    fieldsets = (
-        ('Temel Bilgiler', {
-            'fields': ('name', 'category', 'subcategory', 'value', 'unit')
-        }),
-        ('Geçerlilik', {
-            'fields': ('valid_from', 'valid_to', 'is_active')
-        }),
-        ('Ek Bilgiler', {
-            'fields': ('source', 'type'),
-            'classes': ('collapse',)
-        }),
-    )
-    
-    def get_queryset(self, request):
-        """Admin listesinde varsayılan sıralama"""
-        qs = super().get_queryset(request)
-        return qs.order_by('-is_active', 'category', 'subcategory', 'name')
+    list_display = ['name', 'type', 'value', 'valid_from', 'valid_to']
+    list_filter = ['type', 'valid_from']
+    search_fields = ['name']
 
+# InputCategory admin
 @admin.register(InputCategory)
 class InputCategoryAdmin(admin.ModelAdmin):
-    list_display = ('name', 'scope')
+    list_display = ['name', 'scope']
+    list_filter = ['scope']
+    search_fields = ['name']
 
+# InputData admin
 @admin.register(InputData)
 class InputDataAdmin(admin.ModelAdmin):
-    list_display = ('firm', 'category', 'value', 'period_start')
-    list_filter = ('firm', 'category')
+    list_display = ['firm', 'category', 'value', 'unit', 'period_start', 'period_end']
+    list_filter = ['firm', 'category', 'period_start']
+    search_fields = ['firm__name']
+    date_hierarchy = 'period_start'
 
+# Report admin
 @admin.register(Report)
 class ReportAdmin(admin.ModelAdmin):
-    list_display = ('firm', 'report_date', 'total_co2e')
-    list_filter = ('firm', 'report_date')
+    list_display = ['firm', 'report_date', 'total_co2e', 'status', 'generated_at']
+    list_filter = ['status', 'report_date', 'firm']
+    search_fields = ['firm__name']
+    date_hierarchy = 'report_date'
+    readonly_fields = ['generated_at', 'generated_by']
+
+# Scope1Data admin
+@admin.register(Scope1Data)
+class Scope1DataAdmin(admin.ModelAdmin):
+    list_display = ['firm', 'combustion_type', 'fuel_type', 'consumption_value', 'total_co2e', 'period_year', 'period_month']
+    list_filter = ['firm', 'combustion_type', 'fuel_type', 'period_year']
+    search_fields = ['firm__name']
+
+# Scope2Data admin
+@admin.register(Scope2Data)
+class Scope2DataAdmin(admin.ModelAdmin):
+    list_display = ['firm', 'location', 'electricity_kwh', 'total_co2e', 'period_year', 'period_month']
+    list_filter = ['firm', 'period_year']
+    search_fields = ['firm__name']
