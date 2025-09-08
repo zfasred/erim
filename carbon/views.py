@@ -7,44 +7,23 @@ from django.contrib import messages
 from django.db.models import Q, Sum, Avg, Count
 from django.http import JsonResponse, HttpResponse
 from datetime import date, datetime, timedelta
-from django.views.decorators.http import require_POST
-from decimal import Decimal
 import json
 import pandas as pd
 from io import BytesIO
-from core.models import UserFirm, Firm, User  # Firm modelini import etmelisiniz
 
-
-# Rest framework (eğer kullanıyorsanız)
-try:
-    from rest_framework import viewsets, status
-    from rest_framework.decorators import action
-    from rest_framework.response import Response
-    from rest_framework.permissions import IsAuthenticated
-    from .serializers import (
-        CompanyCarbonReportSerializer,
-        EmissionFactorSerializer,
-        CarbonCalculationInputSerializer
-    )
-except ImportError:
-    pass  # Rest framework kurulu değilse
-
-from .models import Report  # Report modelini import etmelisiniz
-from .services import CarbonCalculationService, ExcelDataLoader
 from .models import (
     CoefficientType, EmissionFactor, FuelType,
-    Scope1Excel, Scope2Excel, Scope3Excel, Scope4Excel,
+    Scope1Data, Scope2Data, Scope3Data, Scope4Data,
     InputCategory, InputData, Report,
-    FuelType, GWPValues, Scope1Excel, Scope2Excel, Scope4Excel, ExcelReport,
-    ReportDetail, ProductAllocation
+    FuelType, GWPValues, Scope1Excel, Scope2Excel, Scope4Excel, ExcelReport
 )
-from .models import (
-    CoefficientType, EmissionFactor, FuelType,
-    InputCategory, InputData, Report,
-    GWPValues, Scope1Excel, Scope2Excel, Scope4Excel, ExcelReport,
-    ReportDetail, ProductAllocation
+from .forms import (
+    CoefficientTypeForm, EmissionFactorForm, FuelTypeForm,
+    Scope1DataForm, Scope2DataForm, Scope3DataForm, Scope4DataForm,
+    UserFirmAccessForm, BulkUploadForm, ReportGenerateForm,
+    InputCategoryForm, InputDataForm, ReportForm
 )
-
+from core.models import UserFirm, Firm, User
 
 # Diğer view'larda da kullanmak için yardımcı fonksiyon
 def get_user_firms(request):
@@ -93,25 +72,25 @@ def dashboard_view(request):
         prev_year = current_year
     
     # Mevcut ay toplamları
-    scope1_current = Scope1Excel.objects.filter(
+    scope1_current = Scope1Data.objects.filter(
         firm=selected_firm,
         period_year=current_year,
         period_month=current_month
     ).aggregate(total=Sum('total_co2e'))['total'] or 0
     
-    scope2_current = Scope2Excel.objects.filter(
+    scope2_current = Scope2Data.objects.filter(
         firm=selected_firm,
         period_year=current_year,
         period_month=current_month
     ).aggregate(total=Sum('total_co2e'))['total'] or 0
     
-    scope3_current = Scope3Excel.objects.filter(
+    scope3_current = Scope3Data.objects.filter(
         firm=selected_firm,
         period_year=current_year,
         period_month=current_month
     ).aggregate(total=Sum('total_co2e'))['total'] or 0
     
-    scope4_current = Scope4Excel.objects.filter(
+    scope4_current = Scope4Data.objects.filter(
         firm=selected_firm,
         period_year=current_year,
         period_month=current_month
@@ -120,25 +99,25 @@ def dashboard_view(request):
     total_current = scope1_current + scope2_current + scope3_current + scope4_current
     
     # Önceki ay toplamları (karşılaştırma için)
-    scope1_prev = Scope1Excel.objects.filter(
+    scope1_prev = Scope1Data.objects.filter(
         firm=selected_firm,
         period_year=prev_year,
         period_month=prev_month
     ).aggregate(total=Sum('total_co2e'))['total'] or 0
     
-    scope2_prev = Scope2Excel.objects.filter(
+    scope2_prev = Scope2Data.objects.filter(
         firm=selected_firm,
         period_year=prev_year,
         period_month=prev_month
     ).aggregate(total=Sum('total_co2e'))['total'] or 0
     
-    scope3_prev = Scope3Excel.objects.filter(
+    scope3_prev = Scope3Data.objects.filter(
         firm=selected_firm,
         period_year=prev_year,
         period_month=prev_month
     ).aggregate(total=Sum('total_co2e'))['total'] or 0
     
-    scope4_prev = Scope4Excel.objects.filter(
+    scope4_prev = Scope4Data.objects.filter(
         firm=selected_firm,
         period_year=prev_year,
         period_month=prev_month
@@ -174,25 +153,25 @@ def dashboard_view(request):
         chart_labels.append(month_year)
         
         # Her ay için toplamları al
-        s1 = Scope1Excel.objects.filter(
+        s1 = Scope1Data.objects.filter(
             firm=selected_firm,
             period_year=target_date.year,
             period_month=target_date.month
         ).aggregate(total=Sum('total_co2e'))['total'] or 0
         
-        s2 = Scope2Excel.objects.filter(
+        s2 = Scope2Data.objects.filter(
             firm=selected_firm,
             period_year=target_date.year,
             period_month=target_date.month
         ).aggregate(total=Sum('total_co2e'))['total'] or 0
         
-        s3 = Scope3Excel.objects.filter(
+        s3 = Scope3Data.objects.filter(
             firm=selected_firm,
             period_year=target_date.year,
             period_month=target_date.month
         ).aggregate(total=Sum('total_co2e'))['total'] or 0
         
-        s4 = Scope4Excel.objects.filter(
+        s4 = Scope4Data.objects.filter(
             firm=selected_firm,
             period_year=target_date.year,
             period_month=target_date.month
@@ -207,7 +186,7 @@ def dashboard_view(request):
     recent_entries = []
     
     # Scope 1 girişleri
-    for entry in Scope1Excel.objects.filter(firm=selected_firm).order_by('-created_at')[:3]:
+    for entry in Scope1Data.objects.filter(firm=selected_firm).order_by('-created_at')[:3]:
         recent_entries.append({
             'created_at': entry.created_at,
             'scope': 'Kapsam 1',
@@ -219,7 +198,7 @@ def dashboard_view(request):
         })
     
     # Scope 2 girişleri
-    for entry in Scope2Excel.objects.filter(firm=selected_firm).order_by('-created_at')[:3]:
+    for entry in Scope2Data.objects.filter(firm=selected_firm).order_by('-created_at')[:3]:
         recent_entries.append({
             'created_at': entry.created_at,
             'scope': 'Kapsam 2',
@@ -264,7 +243,7 @@ def dashboard_view(request):
 
 # KAPSAM 1 VIEW'LARI
 @login_required
-@permission_required('carbon.add_Scope1Excel', raise_exception=True)
+@permission_required('carbon.add_scope1data', raise_exception=True)
 def scope1_create_view(request):
     """Kapsam 1 veri girişi"""
     # Kullanıcının firmasını al
@@ -276,7 +255,7 @@ def scope1_create_view(request):
         return redirect('carbon:dashboard')
     
     if request.method == 'POST':
-        form = Scope1ExcelForm(request.POST, firm=selected_firm)
+        form = Scope1DataForm(request.POST, firm=selected_firm)
         if form.is_valid():
             scope1_data = form.save(commit=False)
             scope1_data.created_by = request.user.user if hasattr(request.user, 'user') else request.user
@@ -284,7 +263,7 @@ def scope1_create_view(request):
             messages.success(request, "Kapsam 1 verisi başarıyla kaydedildi.")
             return redirect('carbon:dashboard')
     else:
-        form = Scope1ExcelForm(firm=selected_firm)
+        form = Scope1DataForm(firm=selected_firm)
     
     return render(request, 'carbon/scope1_form.html', {
         'form': form,
@@ -293,10 +272,10 @@ def scope1_create_view(request):
     })
 
 @login_required
-@permission_required('carbon.change_Scope1Excel', raise_exception=True)
+@permission_required('carbon.change_scope1data', raise_exception=True)
 def scope1_update_view(request, pk):
     """Kapsam 1 veri güncelleme"""
-    scope1_data = get_object_or_404(Scope1Excel, pk=pk)
+    scope1_data = get_object_or_404(Scope1Data, pk=pk)
     
     # Yetki kontrolü
     user_firms = Firm.objects.filter(user_associations__user=request.user.user if hasattr(request.user, 'user') else request.user)
@@ -304,13 +283,13 @@ def scope1_update_view(request, pk):
         raise PermissionDenied
     
     if request.method == 'POST':
-        form = Scope1ExcelForm(request.POST, instance=scope1_data, firm=scope1_data.firm)
+        form = Scope1DataForm(request.POST, instance=scope1_data, firm=scope1_data.firm)
         if form.is_valid():
             form.save()
             messages.success(request, "Kapsam 1 verisi güncellendi.")
             return redirect('carbon:dashboard')
     else:
-        form = Scope1ExcelForm(instance=scope1_data, firm=scope1_data.firm)
+        form = Scope1DataForm(instance=scope1_data, firm=scope1_data.firm)
     
     return render(request, 'carbon/scope1_form.html', {
         'form': form,
@@ -320,7 +299,7 @@ def scope1_update_view(request, pk):
 
 # KAPSAM 2 VIEW'LARI
 @login_required
-@permission_required('carbon.add_Scope2Excel', raise_exception=True)
+@permission_required('carbon.add_scope2data', raise_exception=True)
 def scope2_create_view(request):
     """Kapsam 2 veri girişi"""
     user_firms = Firm.objects.filter(user_associations__user=request.user.user if hasattr(request.user, 'user') else request.user)
@@ -331,7 +310,7 @@ def scope2_create_view(request):
         return redirect('carbon:dashboard')
     
     if request.method == 'POST':
-        form = Scope2ExcelForm(request.POST, firm=selected_firm)
+        form = Scope2DataForm(request.POST, firm=selected_firm)
         if form.is_valid():
             scope2_data = form.save(commit=False)
             scope2_data.created_by = request.user.user if hasattr(request.user, 'user') else request.user
@@ -339,7 +318,7 @@ def scope2_create_view(request):
             messages.success(request, "Kapsam 2 verisi başarıyla kaydedildi.")
             return redirect('carbon:dashboard')
     else:
-        form = Scope2ExcelForm(firm=selected_firm)
+        form = Scope2DataForm(firm=selected_firm)
     
     return render(request, 'carbon/scope2_form.html', {
         'form': form,
@@ -385,7 +364,7 @@ def process_scope1_excel(df, user):
             fuel_type = FuelType.objects.get(name=row['Yakıt Türü'])
             firm = Firm.objects.get(name=row['Firma'])
             
-            Scope1Excel.objects.create(
+            Scope1Data.objects.create(
                 firm=firm,
                 combustion_type='stationary',
                 location=row['Lokasyon'],
@@ -400,258 +379,36 @@ def process_scope1_excel(df, user):
             # Hataları logla
             print(f"Satır {index} işlenirken hata: {e}")
 
-
-# carbon/views.py - Yeni management view
-
+# Mevcut view'larınızı koruyorum
 @login_required
 @permission_required('carbon.view_management_carbon', raise_exception=True)
-def management_view(request):
-    """Karbon yönetim ana sayfası - tek sayfada tüm işlemler"""
-    
-    # AJAX istekleri için
-    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-        action = request.POST.get('action')
-        
-        if action == 'get_subcategories':
-            # Alt kapsam listesini döndür
-            scope = request.POST.get('scope')
-            subcategories = get_subcategories_for_scope(scope)
-            return JsonResponse({'subcategories': subcategories})
-        
-        elif action == 'get_items':
-            # Seçilen kapsam ve alt kapsam için kalemleri getir
-            scope = request.POST.get('scope')
-            subcategory = request.POST.get('subcategory')
-            
-            items = EmissionFactor.objects.filter(
-                category=scope,
-                subcategory=subcategory
-            ).values('id', 'name', 'value', 'unit', 'valid_from', 'valid_to', 'is_active')
-            
-            items_list = []
-            for item in items:
-                items_list.append({
-                    'id': item['id'],
-                    'name': item['name'],
-                    'value': str(item['value']),
-                    'unit': item['unit'],
-                    'valid_from': item['valid_from'].strftime('%Y-%m-%d') if item['valid_from'] else '',
-                    'valid_to': item['valid_to'].strftime('%Y-%m-%d') if item['valid_to'] else '',
-                    'is_active': item['is_active']
-                })
-            
-            return JsonResponse({'items': items_list})
-        
-        elif action == 'add_item':
-            # Yeni kalem ekle
-            try:
-                EmissionFactor.objects.create(
-                    name=request.POST.get('name'),
-                    category=request.POST.get('category'),
-                    subcategory=request.POST.get('subcategory'),
-                    value=float(request.POST.get('value', 0)),
-                    unit=request.POST.get('unit'),
-                    valid_from=request.POST.get('valid_from'),
-                    valid_to=request.POST.get('valid_to') or None,
-                    source=request.POST.get('source', ''),
-                    is_active=request.POST.get('is_active') == 'true'
-                )
-                return JsonResponse({'success': True, 'message': 'Kalem başarıyla eklendi!'})
-            except Exception as e:
-                return JsonResponse({'success': False, 'message': str(e)})
-        
-        elif action == 'update_item':
-            # Kalem güncelle
-            try:
-                item_id = request.POST.get('item_id')
-                item = EmissionFactor.objects.get(id=item_id)
-                
-                item.name = request.POST.get('name')
-                item.value = float(request.POST.get('value', 0))
-                item.unit = request.POST.get('unit')
-                item.valid_from = request.POST.get('valid_from')
-                item.valid_to = request.POST.get('valid_to') or None
-                item.source = request.POST.get('source', '')
-                item.is_active = request.POST.get('is_active') == 'true'
-                item.save()
-                
-                return JsonResponse({'success': True, 'message': 'Kalem güncellendi!'})
-            except Exception as e:
-                return JsonResponse({'success': False, 'message': str(e)})
-        
-        elif action == 'delete_item':
-            # Kalem sil
-            try:
-                item_id = request.POST.get('item_id')
-                EmissionFactor.objects.get(id=item_id).delete()
-                return JsonResponse({'success': True, 'message': 'Kalem silindi!'})
-            except Exception as e:
-                return JsonResponse({'success': False, 'message': str(e)})
-    
-    # Normal sayfa yükleme
+def management_list_view(request):
+    factors = EmissionFactor.objects.all()
+    types = CoefficientType.objects.all()
+    fuel_types = FuelType.objects.all()
     context = {
-        'scopes': get_scope_choices(),
-        'units': get_unit_choices(),
+        'factors': factors, 
+        'types': types,
+        'fuel_types': fuel_types
     }
-    
-    return render(request, 'carbon/management_new.html', context)
 
+    if request.user.has_perm('carbon.can_manage_user_firm_access'):
+        if request.method == 'POST':
+            form = UserFirmAccessForm(request.POST)
+            if form.is_valid():
+                selected_user = form.cleaned_data['user']
+                selected_firm = form.cleaned_data['firm']
+                try:
+                    UserFirm.objects.get(user=selected_user, firm=selected_firm)
+                except UserFirm.DoesNotExist:
+                    UserFirm.objects.create(user=selected_user, firm=selected_firm, create=timezone.now())
+                    messages.success(request, f"'{selected_user.username}' kullanıcısı '{selected_firm.name}' firmasına başarıyla atandı.")
+                return redirect('carbon:management-list')
+        else:
+            form = UserFirmAccessForm()
+        context['user_firm_form'] = form
 
-def get_scope_choices():
-    """Kapsam seçenekleri"""
-    return [
-        {'value': 'KAPSAM_1', 'label': 'Kapsam 1 - Doğrudan Emisyonlar'},
-        {'value': 'KAPSAM_2', 'label': 'Kapsam 2 - Enerji Dolaylı'},
-        {'value': 'KAPSAM_3', 'label': 'Kapsam 3 - Ulaşım'},
-        {'value': 'KAPSAM_4', 'label': 'Kapsam 4 - Satın Alınan Ürünler'},
-        {'value': 'KAPSAM_5', 'label': 'Kapsam 5 - Ürün Kullanımı'},
-        {'value': 'KAPSAM_6', 'label': 'Kapsam 6 - Diğer'},
-    ]
-
-
-def get_subcategories_for_scope(scope):
-    """Her kapsam için alt kategoriler"""
-    subcategories = {
-        'KAPSAM_1': [
-            {'value': 'sabit_yanma', 'label': '1.1 Sabit Yanma'},
-            {'value': 'mobil_yanma', 'label': '1.2 Mobil Yanma'},
-            {'value': 'proses_emisyon', 'label': '1.3 Proses Emisyonları'},
-            {'value': 'kacak_emisyon', 'label': '1.4 Kaçak Emisyonlar'},
-        ],
-        'KAPSAM_2': [
-            {'value': 'elektrik', 'label': '2.1 Elektrik Tüketimi'},
-            {'value': 'buhar', 'label': '2.2 Buhar Tüketimi'},
-            {'value': 'sogutma', 'label': '2.3 Soğutma'},
-            {'value': 'isitma', 'label': '2.4 Isıtma'},
-        ],
-        'KAPSAM_3': [
-            {'value': 'upstream_nakliye', 'label': '3.1 Upstream Nakliye'},
-            {'value': 'downstream_nakliye', 'label': '3.2 Downstream Nakliye'},
-            {'value': 'personel_ulasim', 'label': '3.3 Personel Ulaşımı'},
-            {'value': 'is_seyahat', 'label': '3.4 İş Seyahatleri'},
-        ],
-        'KAPSAM_4': [
-            {'value': 'hammadde', 'label': '4.1 Hammaddeler'},
-            {'value': 'yari_mamul', 'label': '4.2 Yarı Mamuller'},
-            {'value': 'hizmet', 'label': '4.3 Hizmetler'},
-            {'value': 'sermaye_mal', 'label': '4.4 Sermaye Malları'},
-        ],
-        'KAPSAM_5': [
-            {'value': 'urun_kullanim', 'label': '5.1 Ürün Kullanımı'},
-            {'value': 'urun_omur_sonu', 'label': '5.2 Ürün Ömür Sonu'},
-        ],
-        'KAPSAM_6': [
-            {'value': 'diger', 'label': '6.1 Diğer Emisyonlar'},
-        ],
-    }
-    return subcategories.get(scope, [])
-
-
-def get_unit_choices():
-    """Birim seçenekleri"""
-    return [
-        'kgCO2/TJ', 'tCO2/MWh', 'kgCO2e/kg', 'kgCO2e/L', 
-        'kgCO2e/m³', 'kgCO2e/km', 'kgCO2e/kWh'
-    ]
-
-
-@login_required
-@permission_required('carbon.view_management_carbon', raise_exception=True)
-def management_list_view(request):  # İsmi aynı bırakıyoruz URL'ler uyumlu olsun
-    """Karbon yönetim ana sayfası - tek sayfada tüm işlemler"""
-    
-    # AJAX istekleri için
-    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-        action = request.POST.get('action')
-        
-        if action == 'get_subcategories':
-            # Alt kapsam listesini döndür
-            scope = request.POST.get('scope')
-            subcategories = get_subcategories_for_scope(scope)
-            return JsonResponse({'subcategories': subcategories})
-        
-        elif action == 'get_items':
-            # Seçilen kapsam ve alt kapsam için kalemleri getir
-            scope = request.POST.get('scope')
-            subcategory = request.POST.get('subcategory')
-            
-            items = EmissionFactor.objects.filter(
-                category=scope,
-                subcategory=subcategory
-            ).values('id', 'name', 'value', 'unit', 'valid_from', 'valid_to', 'is_active')
-            
-            items_list = []
-            for item in items:
-                items_list.append({
-                    'id': item['id'],
-                    'name': item['name'],
-                    'value': str(item['value']),
-                    'unit': item['unit'] if item['unit'] else '',
-                    'valid_from': item['valid_from'].strftime('%Y-%m-%d') if item['valid_from'] else '',
-                    'valid_to': item['valid_to'].strftime('%Y-%m-%d') if item['valid_to'] else '',
-                    'is_active': item.get('is_active', True)
-                })
-            
-            return JsonResponse({'items': items_list})
-        
-        elif action == 'add_item':
-            # Yeni kalem ekle
-            try:
-                # Unit alanı boşsa varsayılan değer
-                unit = request.POST.get('unit')
-                if not unit:
-                    unit = 'kgCO2/TJ'  # Varsayılan birim
-                
-                EmissionFactor.objects.create(
-                    name=request.POST.get('name'),
-                    category=request.POST.get('category'),
-                    subcategory=request.POST.get('subcategory'),
-                    value=float(request.POST.get('value', 0)),
-                    unit=unit,
-                    valid_from=request.POST.get('valid_from'),
-                    valid_to=request.POST.get('valid_to') or None,
-                    source=request.POST.get('source', ''),
-                    is_active=request.POST.get('is_active') == 'true'
-                )
-                return JsonResponse({'success': True, 'message': 'Kalem başarıyla eklendi!'})
-            except Exception as e:
-                return JsonResponse({'success': False, 'message': str(e)})
-        
-        elif action == 'update_item':
-            # Kalem güncelle
-            try:
-                item_id = request.POST.get('item_id')
-                item = EmissionFactor.objects.get(id=item_id)
-                
-                item.name = request.POST.get('name')
-                item.value = float(request.POST.get('value', 0))
-                item.unit = request.POST.get('unit')
-                item.valid_from = request.POST.get('valid_from')
-                item.valid_to = request.POST.get('valid_to') or None
-                item.source = request.POST.get('source', '')
-                item.is_active = request.POST.get('is_active') == 'true'
-                item.save()
-                
-                return JsonResponse({'success': True, 'message': 'Kalem güncellendi!'})
-            except Exception as e:
-                return JsonResponse({'success': False, 'message': str(e)})
-        
-        elif action == 'delete_item':
-            # Kalem sil
-            try:
-                item_id = request.POST.get('item_id')
-                EmissionFactor.objects.get(id=item_id).delete()
-                return JsonResponse({'success': True, 'message': 'Kalem silindi!'})
-            except Exception as e:
-                return JsonResponse({'success': False, 'message': str(e)})
-    
-    # Normal sayfa yükleme
-    context = {
-        'scopes': get_scope_choices(),
-        'units': get_unit_choices(),
-    }
-    
-    return render(request, 'carbon/management_new.html', context)
+    return render(request, 'carbon/management_list.html', context)
 
 
 @login_required
@@ -763,7 +520,7 @@ def fueltype_delete_view(request, pk):
 
 # KAPSAM 1 LİSTE VIEW'I
 @login_required
-@permission_required('carbon.view_Scope1Excel', raise_exception=True)
+@permission_required('carbon.view_scope1data', raise_exception=True)
 def scope1_list_view(request):
     """Kapsam 1 verilerini listele"""
     user_firms = Firm.objects.filter(
@@ -777,9 +534,9 @@ def scope1_list_view(request):
         selected_firm = user_firms.first()
     
     if selected_firm:
-        scope1_data = Scope1Excel.objects.filter(firm=selected_firm).order_by('-period_year', '-period_month')
+        scope1_data = Scope1Data.objects.filter(firm=selected_firm).order_by('-period_year', '-period_month')
     else:
-        scope1_data = Scope1Excel.objects.none()
+        scope1_data = Scope1Data.objects.none()
     
     return render(request, 'carbon/scope1_list.html', {
         'scope1_data': scope1_data,
@@ -788,10 +545,10 @@ def scope1_list_view(request):
     })
 
 @login_required
-@permission_required('carbon.delete_Scope1Excel', raise_exception=True)
+@permission_required('carbon.delete_scope1data', raise_exception=True)
 def scope1_delete_view(request, pk):
     """Kapsam 1 veri silme"""
-    scope1_data = get_object_or_404(Scope1Excel, pk=pk)
+    scope1_data = get_object_or_404(Scope1Data, pk=pk)
     
     # Yetki kontrolü
     user_firms = Firm.objects.filter(
@@ -811,7 +568,7 @@ def scope1_delete_view(request, pk):
 
 # KAPSAM 2 VIEW'LARI
 @login_required
-@permission_required('carbon.view_Scope2Excel', raise_exception=True)
+@permission_required('carbon.view_scope2data', raise_exception=True)
 def scope2_list_view(request):
     """Kapsam 2 verilerini listele"""
     user_firms = Firm.objects.filter(
@@ -825,9 +582,9 @@ def scope2_list_view(request):
         selected_firm = user_firms.first()
     
     if selected_firm:
-        scope2_data = Scope2Excel.objects.filter(firm=selected_firm).order_by('-period_year', '-period_month')
+        scope2_data = Scope2Data.objects.filter(firm=selected_firm).order_by('-period_year', '-period_month')
     else:
-        scope2_data = Scope2Excel.objects.none()
+        scope2_data = Scope2Data.objects.none()
     
     return render(request, 'carbon/scope2_list.html', {
         'scope2_data': scope2_data,
@@ -836,10 +593,10 @@ def scope2_list_view(request):
     })
 
 @login_required
-@permission_required('carbon.change_Scope2Excel', raise_exception=True)
+@permission_required('carbon.change_scope2data', raise_exception=True)
 def scope2_update_view(request, pk):
     """Kapsam 2 veri güncelleme"""
-    scope2_data = get_object_or_404(Scope2Excel, pk=pk)
+    scope2_data = get_object_or_404(Scope2Data, pk=pk)
     
     # Yetki kontrolü
     user_firms = Firm.objects.filter(
@@ -849,13 +606,13 @@ def scope2_update_view(request, pk):
         raise PermissionDenied
     
     if request.method == 'POST':
-        form = Scope2ExcelForm(request.POST, instance=scope2_data, firm=scope2_data.firm)
+        form = Scope2DataForm(request.POST, instance=scope2_data, firm=scope2_data.firm)
         if form.is_valid():
             form.save()
             messages.success(request, "Kapsam 2 verisi güncellendi.")
             return redirect('carbon:scope2-list')
     else:
-        form = Scope2ExcelForm(instance=scope2_data, firm=scope2_data.firm)
+        form = Scope2DataForm(instance=scope2_data, firm=scope2_data.firm)
     
     return render(request, 'carbon/scope2_form.html', {
         'form': form,
@@ -864,10 +621,10 @@ def scope2_update_view(request, pk):
     })
 
 @login_required
-@permission_required('carbon.delete_Scope2Excel', raise_exception=True)
+@permission_required('carbon.delete_scope2data', raise_exception=True)
 def scope2_delete_view(request, pk):
     """Kapsam 2 veri silme"""
-    scope2_data = get_object_or_404(Scope2Excel, pk=pk)
+    scope2_data = get_object_or_404(Scope2Data, pk=pk)
     
     # Yetki kontrolü
     user_firms = Firm.objects.filter(
@@ -887,7 +644,7 @@ def scope2_delete_view(request, pk):
 
 # KAPSAM 3 VIEW'LARI
 @login_required
-@permission_required('carbon.view_Scope3Excel', raise_exception=True)
+@permission_required('carbon.view_scope3data', raise_exception=True)
 def scope3_list_view(request):
     """Kapsam 3 verilerini listele"""
     user_firms = Firm.objects.filter(
@@ -901,9 +658,9 @@ def scope3_list_view(request):
         selected_firm = user_firms.first()
     
     if selected_firm:
-        scope3_data = Scope3Excel.objects.filter(firm=selected_firm).order_by('-period_year', '-period_month')
+        scope3_data = Scope3Data.objects.filter(firm=selected_firm).order_by('-period_year', '-period_month')
     else:
-        scope3_data = Scope3Excel.objects.none()
+        scope3_data = Scope3Data.objects.none()
     
     return render(request, 'carbon/scope3_list.html', {
         'scope3_data': scope3_data,
@@ -912,7 +669,7 @@ def scope3_list_view(request):
     })
 
 @login_required
-@permission_required('carbon.add_Scope3Excel', raise_exception=True)
+@permission_required('carbon.add_scope3data', raise_exception=True)
 def scope3_create_view(request):
     """Kapsam 3 veri girişi"""
     user_firms = Firm.objects.filter(
@@ -925,7 +682,7 @@ def scope3_create_view(request):
         return redirect('carbon:dashboard')
     
     if request.method == 'POST':
-        form = Scope3ExcelForm(request.POST, firm=selected_firm)
+        form = Scope3DataForm(request.POST, firm=selected_firm)
         if form.is_valid():
             scope3_data = form.save(commit=False)
             scope3_data.created_by = request.user.user if hasattr(request.user, 'user') else request.user
@@ -933,7 +690,7 @@ def scope3_create_view(request):
             messages.success(request, "Kapsam 3 verisi başarıyla kaydedildi.")
             return redirect('carbon:scope3-list')
     else:
-        form = Scope3ExcelForm(firm=selected_firm)
+        form = Scope3DataForm(firm=selected_firm)
     
     return render(request, 'carbon/scope3_form.html', {
         'form': form,
@@ -942,10 +699,10 @@ def scope3_create_view(request):
     })
 
 @login_required
-@permission_required('carbon.change_Scope3Excel', raise_exception=True)
+@permission_required('carbon.change_scope3data', raise_exception=True)
 def scope3_update_view(request, pk):
     """Kapsam 3 veri güncelleme"""
-    scope3_data = get_object_or_404(Scope3Excel, pk=pk)
+    scope3_data = get_object_or_404(Scope3Data, pk=pk)
     
     # Yetki kontrolü
     user_firms = Firm.objects.filter(
@@ -955,13 +712,13 @@ def scope3_update_view(request, pk):
         raise PermissionDenied
     
     if request.method == 'POST':
-        form = Scope3ExcelForm(request.POST, instance=scope3_data, firm=scope3_data.firm)
+        form = Scope3DataForm(request.POST, instance=scope3_data, firm=scope3_data.firm)
         if form.is_valid():
             form.save()
             messages.success(request, "Kapsam 3 verisi güncellendi.")
             return redirect('carbon:scope3-list')
     else:
-        form = Scope3ExcelForm(instance=scope3_data, firm=scope3_data.firm)
+        form = Scope3DataForm(instance=scope3_data, firm=scope3_data.firm)
     
     return render(request, 'carbon/scope3_form.html', {
         'form': form,
@@ -970,10 +727,10 @@ def scope3_update_view(request, pk):
     })
 
 @login_required
-@permission_required('carbon.delete_Scope3Excel', raise_exception=True)
+@permission_required('carbon.delete_scope3data', raise_exception=True)
 def scope3_delete_view(request, pk):
     """Kapsam 3 veri silme"""
-    scope3_data = get_object_or_404(Scope3Excel, pk=pk)
+    scope3_data = get_object_or_404(Scope3Data, pk=pk)
     
     # Yetki kontrolü
     user_firms = Firm.objects.filter(
@@ -993,7 +750,7 @@ def scope3_delete_view(request, pk):
 
 # KAPSAM 4 VIEW'LARI
 @login_required
-@permission_required('carbon.view_Scope4Excel', raise_exception=True)
+@permission_required('carbon.view_scope4data', raise_exception=True)
 def scope4_list_view(request):
     """Kapsam 4 verilerini listele"""
     user_firms = Firm.objects.filter(
@@ -1007,9 +764,9 @@ def scope4_list_view(request):
         selected_firm = user_firms.first()
     
     if selected_firm:
-        scope4_data = Scope4Excel.objects.filter(firm=selected_firm).order_by('-period_year', '-period_month')
+        scope4_data = Scope4Data.objects.filter(firm=selected_firm).order_by('-period_year', '-period_month')
     else:
-        scope4_data = Scope4Excel.objects.none()
+        scope4_data = Scope4Data.objects.none()
     
     return render(request, 'carbon/scope4_list.html', {
         'scope4_data': scope4_data,
@@ -1018,7 +775,7 @@ def scope4_list_view(request):
     })
 
 @login_required
-@permission_required('carbon.add_Scope4Excel', raise_exception=True)
+@permission_required('carbon.add_scope4data', raise_exception=True)
 def scope4_create_view(request):
     """Kapsam 4 veri girişi"""
     user_firms = Firm.objects.filter(
@@ -1031,7 +788,7 @@ def scope4_create_view(request):
         return redirect('carbon:dashboard')
     
     if request.method == 'POST':
-        form = Scope4ExcelForm(request.POST, firm=selected_firm)
+        form = Scope4DataForm(request.POST, firm=selected_firm)
         if form.is_valid():
             scope4_data = form.save(commit=False)
             scope4_data.created_by = request.user.user if hasattr(request.user, 'user') else request.user
@@ -1039,7 +796,7 @@ def scope4_create_view(request):
             messages.success(request, "Kapsam 4 verisi başarıyla kaydedildi.")
             return redirect('carbon:scope4-list')
     else:
-        form = Scope4ExcelForm(firm=selected_firm)
+        form = Scope4DataForm(firm=selected_firm)
     
     return render(request, 'carbon/scope4_form.html', {
         'form': form,
@@ -1048,10 +805,10 @@ def scope4_create_view(request):
     })
 
 @login_required
-@permission_required('carbon.change_Scope4Excel', raise_exception=True)
+@permission_required('carbon.change_scope4data', raise_exception=True)
 def scope4_update_view(request, pk):
     """Kapsam 4 veri güncelleme"""
-    scope4_data = get_object_or_404(Scope4Excel, pk=pk)
+    scope4_data = get_object_or_404(Scope4Data, pk=pk)
     
     # Yetki kontrolü
     user_firms = Firm.objects.filter(
@@ -1061,13 +818,13 @@ def scope4_update_view(request, pk):
         raise PermissionDenied
     
     if request.method == 'POST':
-        form = Scope4ExcelForm(request.POST, instance=scope4_data, firm=scope4_data.firm)
+        form = Scope4DataForm(request.POST, instance=scope4_data, firm=scope4_data.firm)
         if form.is_valid():
             form.save()
             messages.success(request, "Kapsam 4 verisi güncellendi.")
             return redirect('carbon:scope4-list')
     else:
-        form = Scope4ExcelForm(instance=scope4_data, firm=scope4_data.firm)
+        form = Scope4DataForm(instance=scope4_data, firm=scope4_data.firm)
     
     return render(request, 'carbon/scope4_form.html', {
         'form': form,
@@ -1076,10 +833,10 @@ def scope4_update_view(request, pk):
     })
 
 @login_required
-@permission_required('carbon.delete_Scope4Excel', raise_exception=True)
+@permission_required('carbon.delete_scope4data', raise_exception=True)
 def scope4_delete_view(request, pk):
     """Kapsam 4 veri silme"""
-    scope4_data = get_object_or_404(Scope4Excel, pk=pk)
+    scope4_data = get_object_or_404(Scope4Data, pk=pk)
     
     # Yetki kontrolü
     user_firms = Firm.objects.filter(
@@ -1100,7 +857,7 @@ def scope4_delete_view(request, pk):
 @login_required
 @permission_required('carbon.view_report_carbon', raise_exception=True)
 def report_generate_view(request):
-    """Anlık karbon raporu oluştur"""
+    """Anlık karbon raporu oluştur (kaydetmeden)"""
     
     if request.method == 'POST':
         form = ReportForm(request.POST, user=request.user)
@@ -1108,82 +865,87 @@ def report_generate_view(request):
             firm = form.cleaned_data['firm']
             report_date = form.cleaned_data['report_date']
             
-            # Rapor dönemini belirle
+            # Rapor dönemini belirle (son 1 yıl)
             report_period_end = report_date
             report_period_start = report_date - timedelta(days=365)
             
-            # Kullanıcı bilgisini al
-            if hasattr(request.user, 'user'):
-                generated_by_user = request.user.user
+            # Verileri topla (veritabanından)
+            scope1_data = Scope1Data.objects.filter(
+                firm=firm,
+                period_year__gte=report_period_start.year,
+                period_year__lte=report_period_end.year
+            ).aggregate(
+                total=Sum('total_co2e')
+            )['total'] or 0
+            
+            scope2_data = Scope2Data.objects.filter(
+                firm=firm,
+                period_year__gte=report_period_start.year,
+                period_year__lte=report_period_end.year
+            ).aggregate(
+                total=Sum('total_co2e')
+            )['total'] or 0
+            
+            scope3_data = Scope3Data.objects.filter(
+                firm=firm,
+                period_year__gte=report_period_start.year,
+                period_year__lte=report_period_end.year
+            ).aggregate(
+                total=Sum('total_co2e')
+            )['total'] or 0
+            
+            scope4_data = Scope4Data.objects.filter(
+                firm=firm,
+                period_year__gte=report_period_start.year,
+                period_year__lte=report_period_end.year
+            ).aggregate(
+                total=Sum('total_co2e')
+            )['total'] or 0
+            
+            # Toplam emisyon
+            total_emission = scope1_data + scope2_data + scope3_data + scope4_data
+            
+            # Direct (Kapsam 1) ve Indirect (Kapsam 2+3) oranları
+            direct_emissions = scope1_data
+            indirect_emissions = scope2_data + scope3_data + scope4_data
+            
+            if total_emission > 0:
+                direct_ratio = (direct_emissions / total_emission) * 100
+                indirect_ratio = (indirect_emissions / total_emission) * 100
             else:
-                generated_by_user = None
+                direct_ratio = 0
+                indirect_ratio = 0
             
-            # Yıl ve ay
-            report_year = report_date.year
-            report_month = report_date.month
+            # Rapor verilerini hazırla (kaydetmeden)
+            report_data = {
+                'firm': firm,
+                'report_date': report_date,
+                'report_period_start': report_period_start,
+                'report_period_end': report_period_end,
+                'scope1_total': scope1_data,
+                'scope2_total': scope2_data,
+                'scope3_total': scope3_data,
+                'scope4_total': scope4_data,
+                'total_emission': total_emission,
+                'direct_ratio': direct_ratio,
+                'indirect_ratio': indirect_ratio,
+            }
             
-            # Excel modellerinden verileri topla
-            scope1_total = Scope1Excel.objects.filter(
-                firm=firm,
-                year__gte=report_period_start.year,
-                year__lte=report_period_end.year
-            ).aggregate(total=Sum('co2e_total'))['total'] or Decimal('0')
+            # Excel'e aktar düğmesine basıldıysa
+            if 'export_excel' in request.POST:
+                return export_report_to_excel(report_data)
             
-            scope2_total = Scope2Excel.objects.filter(
-                firm=firm,
-                year__gte=report_period_start.year,
-                year__lte=report_period_end.year
-            ).aggregate(total=Sum('co2e_total'))['total'] or Decimal('0')
-            
-            scope4_total = Scope4Excel.objects.filter(
-                firm=firm,
-                year__gte=report_period_start.year,
-                year__lte=report_period_end.year
-            ).aggregate(total=Sum('co2e_total'))['total'] or Decimal('0')
-            
-            # Diğer scope'lar için varsayılan
-            scope3_total = Decimal('0')
-            scope5_total = Decimal('0')
-            scope6_total = Decimal('0')
-            
-            # Toplamları hesapla
-            total = scope1_total + scope2_total + scope3_total + scope4_total + scope5_total + scope6_total
-            
-            # Oranları hesapla
-            if total > 0:
-                direct_ratio = float((scope1_total + scope2_total) / total * 100)
-                indirect_ratio = float((scope3_total + scope4_total) / total * 100)
-            else:
-                direct_ratio = 0.0
-                indirect_ratio = 0.0
-            
-            # Rapor oluştur - TÜM ALANLAR KEYWORD ARGUMENT OLMALI
-            report = Report.objects.create(
-                firm=firm,
-                report_date=report_date,
-                report_period_start=report_period_start,
-                report_period_end=report_period_end,
-                report_year=report_year,
-                report_month=report_month,
-                generated_by=generated_by_user,
-                total_co2e=float(total),
-                direct_ratio=direct_ratio,
-                indirect_ratio=indirect_ratio,
-                scope1_total=scope1_total,
-                scope2_total=scope2_total,
-                scope3_total=scope3_total,
-                scope4_total=scope4_total,
-                scope5_total=scope5_total,
-                scope6_total=scope6_total,
-                status='COMPLETED'
-            )
-            
-            messages.success(request, f"Rapor başarıyla oluşturuldu! Toplam: {total:.2f} tCO2e")
-            return redirect('carbon:report-list')
+            # Raporu göster
+            return render(request, 'carbon/report_display.html', {
+                'report': report_data,
+                'form': form
+            })
     else:
-        form = ReportForm(user=request.user, initial={'report_date': timezone.now().date()})
+        form = ReportForm(user=request.user)
     
-    return render(request, 'carbon/report_form.html', {'form': form})
+    return render(request, 'carbon/report_generate.html', {
+        'form': form
+    })
 
 
 def export_report_to_excel(report_data):
@@ -1236,6 +998,87 @@ def export_report_to_excel(report_data):
     response['Content-Disposition'] = f'attachment; filename={filename}'
     
     return response
+
+@login_required
+@permission_required('carbon.add_report', raise_exception=True)
+def report_generate_view(request):
+    if request.method == 'POST':
+        form = ReportForm(request.POST)
+        if form.is_valid():
+            report_date = form.cleaned_data['report_date']
+            
+            # Kullanıcının firmasını bul
+            if request.user.is_superuser:
+                firm = Firm.objects.first()
+            elif hasattr(request.user, 'user'):
+                firm = Firm.objects.filter(user_associations__user=request.user.user).first()
+            else:
+                firm = Firm.objects.filter(user_associations__user=request.user).first()
+            
+            if not firm:
+                raise PermissionDenied("No associated firm found.")
+            
+            # InputData'dan verileri al
+            inputs = InputData.objects.filter(firm=firm, period_end__lte=report_date)
+            
+            total_co2e = 0.0
+            direct_emissions = 0.0
+            indirect_emissions = 0.0
+            details = {}
+            
+            for input_data in inputs:
+                factor = EmissionFactor.objects.filter(
+                    Q(category=input_data.category.scope),
+                    Q(valid_from__lte=report_date),
+                    Q(valid_to__gte=report_date) | Q(valid_to__isnull=True)
+                ).order_by('-valid_from').first()
+                
+                if factor:
+                    co2e = input_data.value * factor.value
+                    total_co2e += co2e
+                    if input_data.category.scope in ['KAPSAM_1', 'KAPSAM_2']:
+                        direct_emissions += co2e
+                    else:
+                        indirect_emissions += co2e
+                    details[input_data.id] = {
+                        'input_value': input_data.value,
+                        'factor_value': factor.value,
+                        'calculated_co2e': co2e
+                    }
+            
+            direct_ratio = (direct_emissions / total_co2e * 100) if total_co2e > 0 else 0.0
+            indirect_ratio = (indirect_emissions / total_co2e * 100) if total_co2e > 0 else 0.0
+
+            if hasattr(request.user, 'user'):
+                generated_by_user = request.user.user
+            elif hasattr(request.user, 'profile'):
+                generated_by_user = request.user.profile
+            else:
+                generated_by_user = None
+            report_period_end = report_date
+            report_period_start = report_date - timedelta(days=365)  # Son 1 yıl
+            report = Report.objects.create(
+                firm=firm,
+                report_date=report_date,
+                report_period_start=report_period_start,
+                report_period_end=report_period_end,
+                generated_by=generated_by_user,
+                total_co2e=0,
+                direct_ratio=0,
+                indirect_ratio=0,
+                scope1_total=0,
+                scope2_total=0,
+                scope3_total=0,
+                scope4_total=0,
+                scope5_total=0,
+                scope6_total=0,
+            )
+            return redirect('carbon:report-list')
+    else:
+        form = ReportForm(initial={'report_date': timezone.now().date()})
+    
+    # ÖNEMLİ: GET request için mutlaka form'u render et
+    return render(request, 'carbon/report_form.html', {'form': form})
 
 @login_required
 @permission_required('carbon.view_report', raise_exception=True)
@@ -1483,629 +1326,120 @@ def input_list_view(request):
     }
     return render(request, 'carbon/input_list.html', context)
 
-@login_required
-@permission_required('carbon.view_report', raise_exception=True)
-def excel_report_view(request):
-    """Excel raporu oluştur ve indir"""
-    if request.method == 'POST':
-        firm_id = request.POST.get('firm_id')
-        year = int(request.POST.get('year', datetime.now().year))
-        month = request.POST.get('month')
-        
-        if not firm_id:
-            messages.error(request, "Lütfen bir firma seçin.")
-            return redirect('carbon:excel-report')
-        
-        firm = get_object_or_404(Firm, pk=firm_id)
-        
-        # Yetki kontrolü
-        user_firms = get_user_firms(request)
-        if firm not in user_firms:
-            raise PermissionDenied
-        
-        # Month değerini kontrol et
-        if month:
-            month = int(month)
-        else:
-            month = None
-        
-        # ExcelReport oluştur veya getir
-        if month:
-            excel_report, created = ExcelReport.objects.get_or_create(
-                firm=firm,
-                year=year,
-                month=month,
-                defaults={'created_by': request.user.user if hasattr(request.user, 'user') else None}
-            )
-        else:
-            excel_report, created = ExcelReport.objects.get_or_create(
-                firm=firm,
-                year=year,
-                month=1,  # Yıllık rapor için varsayılan ay
-                defaults={'created_by': request.user.user if hasattr(request.user, 'user') else None}
-            )
-        
-        # Toplamları hesapla
-        excel_report.calculate_totals()
-        excel_report.save()
-        
-        # Excel dosyası oluştur
-        output = BytesIO()
-        with pd.ExcelWriter(output, engine='openpyxl') as writer:
-            # Özet sayfası
-            summary_data = {
-                'Bilgi': ['Firma', 'Yıl', 'Ay', 'Toplam CO2e'],
-                'Değer': [firm.name, year, month or 'Yıllık', f"{excel_report.total_co2e:.2f}"]
-            }
-            df_summary = pd.DataFrame(summary_data)
-            df_summary.to_excel(writer, sheet_name='Özet', index=False)
-            
-            # Kapsam detayları
-            scope_data = {
-                'Kapsam': ['Kapsam 1', 'Kapsam 2', 'Kapsam 3', 'Kapsam 4', 'TOPLAM'],
-                'CO2e (ton)': [
-                    float(excel_report.scope1_total),
-                    float(excel_report.scope2_total),
-                    float(excel_report.scope3_total),
-                    float(excel_report.scope4_total),
-                    float(excel_report.total_co2e)
-                ]
-            }
-            df_scopes = pd.DataFrame(scope_data)
-            df_scopes.to_excel(writer, sheet_name='Kapsamlar', index=False)
-        
-        output.seek(0)
-        
-        # Response oluştur
-        response = HttpResponse(
-            output.read(),
-            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-        )
-        filename = f"karbon_raporu_{firm.name}_{year}_{month or 'yillik'}.xlsx"
-        response['Content-Disposition'] = f'attachment; filename="{filename}"'
-        
-        return response
-    
-    # GET request - form göster
-    user_firms = get_user_firms(request)
-    
-    context = {
-        'firms': user_firms,
-        'years': range(2020, datetime.now().year + 2),
-        'months': [
-            (1, 'Ocak'), (2, 'Şubat'), (3, 'Mart'),
-            (4, 'Nisan'), (5, 'Mayıs'), (6, 'Haziran'),
-            (7, 'Temmuz'), (8, 'Ağustos'), (9, 'Eylül'),
-            (10, 'Ekim'), (11, 'Kasım'), (12, 'Aralık')
-        ]
-    }
-    
-    return render(request, 'carbon/excel_report_form.html', context)
 
 @login_required
-@permission_required('carbon.view_report', raise_exception=True)
 def report_list_view(request):
-    """Raporları listele"""
-    # Kullanıcının firmalarını al
-    user_firms = get_user_firms(request)
+    """Rapor listesi görüntüleme"""
     
-    # Raporları filtrele
-    reports = Report.objects.filter(firm__in=user_firms).order_by('-report_date')
+    # Kullanıcının yetkili olduğu firmaları al
+    if request.user.is_superuser:
+        user_firms = Firm.objects.all()
+    else:
+        if hasattr(request.user, 'user'):
+            user_profile = request.user.user
+            user_firms = Firm.objects.filter(user_associations__user=user_profile)
+        else:
+            user_firms = Firm.objects.none()
     
-    # Firma filtresi
-    firm_id = request.GET.get('firm_id')
-    if firm_id:
-        reports = reports.filter(firm_id=firm_id)
+    # Firma seçimi
+    selected_firm_id = request.GET.get('firm_id')
+    if selected_firm_id:
+        try:
+            selected_firm = Firm.objects.get(pk=selected_firm_id)
+            if not request.user.is_superuser and selected_firm not in user_firms:
+                messages.error(request, "Bu firmaya erişim yetkiniz yok!")
+                selected_firm = user_firms.first() if user_firms else None
+        except Firm.DoesNotExist:
+            selected_firm = user_firms.first() if user_firms else None
+    else:
+        selected_firm = user_firms.first() if user_firms else None
     
-    # Tarih filtresi
-    start_date = request.GET.get('start_date')
-    end_date = request.GET.get('end_date')
-    if start_date:
-        reports = reports.filter(report_date__gte=start_date)
-    if end_date:
-        reports = reports.filter(report_date__lte=end_date)
+    # Rapor listesi
+    if selected_firm:
+        reports = Report.objects.filter(firm=selected_firm).order_by('-report_date')
+    else:
+        reports = Report.objects.none()
+    
+    # İstatistikler
+    total_emissions = 0
+    latest_report = None
+    
+    if reports.exists():
+        from django.db.models import Sum
+        total_emissions = reports.aggregate(
+            total=Sum('total_co2e')
+        )['total'] or 0
+        latest_report = reports.first()
     
     context = {
         'reports': reports,
-        'firms': user_firms,
-        'selected_firm': firm_id,
-        'start_date': start_date,
-        'end_date': end_date,
+        'user_firms': user_firms,
+        'selected_firm': selected_firm,
+        'total_emissions': total_emissions,
+        'latest_report': latest_report,
     }
     
     return render(request, 'carbon/report_list.html', context)
 
+
 @login_required
-def carbon_dashboard(request):
-    """Karbon modülü ana sayfası"""
+def excel_report_view(request):
+    """Excel formatında karbon raporu görüntüleme"""
     
-    # Kullanıcının yetkili olduğu firmalar
-    if hasattr(request.user, 'user'):
-        user_profile = request.user.user
-        firms = user_profile.firm.all() if hasattr(user_profile, 'firm') else Firm.objects.none()
+    # Firma seç
+    if request.user.is_superuser:
+        firms = Firm.objects.all()
     else:
-        firms = Firm.objects.all() if request.user.is_superuser else Firm.objects.none()
+        if hasattr(request.user, 'user'):
+            firms = Firm.objects.filter(user_associations__user=request.user.user)
+        else:
+            firms = Firm.objects.none()
     
-    # Son raporlar
-    recent_reports = Report.objects.filter(
-        firm__in=firms
-    ).order_by('-report_date')[:5]
+    selected_firm_id = request.GET.get('firm_id')
+    selected_firm = None
+    report = None
+    scope1_data = None
+    scope2_data = None
+    scope4_data = None
     
-    # İstatistikler
-    total_reports = Report.objects.filter(firm__in=firms).count()
-    total_emissions = Report.objects.filter(
-        firm__in=firms
-    ).aggregate(
-        total=Sum('total_co2e')
-    )['total'] or 0
+    if selected_firm_id:
+        selected_firm = get_object_or_404(Firm, pk=selected_firm_id)
+        
+        # Rapor getir veya oluştur
+        year = int(request.GET.get('year', 2025))
+        month = int(request.GET.get('month', 1))
+        
+        report = ExcelReport.objects.filter(
+            firm=selected_firm,
+            year=year,
+            month=month
+        ).first()
+        
+        if report:
+            # Kapsam detaylarını getir
+            scope1_data = Scope1Excel.objects.filter(
+                firm=selected_firm,
+                year=year,
+                month=month
+            )
+            scope2_data = Scope2Excel.objects.filter(
+                firm=selected_firm,
+                year=year,
+                month=month
+            )
+            scope4_data = Scope4Excel.objects.filter(
+                firm=selected_firm,
+                year=year,
+                month=month
+            )
     
     context = {
         'firms': firms,
-        'recent_reports': recent_reports,
-        'total_reports': total_reports,
-        'total_emissions': total_emissions,
-    }
-    
-    return render(request, 'carbon/dashboard.html', context)
-
-@login_required
-def carbon_input(request, firm_id):
-    """Karbon verisi girişi sayfası"""
-    
-    firm = get_object_or_404(Firm, pk=firm_id)
-    
-    # Yetki kontrolü
-    if not request.user.is_superuser:
-        if hasattr(request.user, 'user'):
-            if firm not in request.user.user.firm.all():
-                messages.error(request, "Bu firmaya erişim yetkiniz yok!")
-                return redirect('carbon:dashboard')
-    
-    if request.method == 'POST':
-        year = int(request.POST.get('year', 2025))
-        month = int(request.POST.get('month', 1))
-        scope = request.POST.get('scope')
-        
-        if scope == 'scope1':
-            # Kapsam 1 verisi kaydet
-            location = request.POST.get('location')
-            fuel_name = request.POST.get('fuel_name')
-            consumption = Decimal(request.POST.get('consumption', '0'))
-            unit = request.POST.get('unit', 'm³')
-            emission_type = request.POST.get('emission_type', 'STATIONARY')
-            
-            # Emisyon faktörünü bul
-            emission_factor = EmissionFactor.objects.filter(
-                name=fuel_name,
-                factor_type='FUEL'
-            ).first()
-            
-            if emission_factor:
-                Scope1Excel.objects.update_or_create(
-                    firm=firm,
-                    location=location,
-                    fuel_name=fuel_name,
-                    period_year=year,
-                    period_month=month,
-                    defaults={
-                        'consumption_value': consumption,
-                        'consumption_unit': unit,
-                        'emission_type': emission_type,
-                        'emission_factor': emission_factor,
-                        'created_by': request.user.user if hasattr(request.user, 'user') else None
-                    }
-                )
-                messages.success(request, "Kapsam 1 verisi kaydedildi!")
-        
-        elif scope == 'scope2':
-            # Kapsam 2 verisi kaydet
-            facility = request.POST.get('facility_name')
-            electricity = Decimal(request.POST.get('electricity_kwh', '0'))
-            
-            Scope2Excel.objects.update_or_create(
-                firm=firm,
-                facility_name=facility,
-                period_year=year,
-                period_month=month,
-                defaults={
-                    'electricity_kwh': electricity,
-                    'created_by': request.user.user if hasattr(request.user, 'user') else None
-                }
-            )
-            messages.success(request, "Kapsam 2 verisi kaydedildi!")
-        
-        elif scope == 'scope3':
-            # Kapsam 3 verisi kaydet
-            messages.success(request, "Kapsam 3 verisi kaydedildi!")
-        
-        elif scope == 'scope4':
-            # Kapsam 4 verisi kaydet
-            product_name = request.POST.get('product_name')
-            quantity = Decimal(request.POST.get('quantity', '0'))
-            material_type = request.POST.get('material_type')
-            
-            emission_factor = EmissionFactor.objects.filter(
-                name=material_type,
-                factor_type='MATERIAL'
-            ).first()
-            
-            if emission_factor:
-                Scope4Excel.objects.update_or_create(
-                    firm=firm,
-                    product_name=product_name,
-                    period_year=year,
-                    period_month=month,
-                    defaults={
-                        'product_category': 'Hammadde',
-                        'quantity': quantity,
-                        'unit': 'kg',
-                        'emission_factor': emission_factor.ef_co2,
-                        'emission_factor_source': emission_factor.source,
-                        'created_by': request.user.user if hasattr(request.user, 'user') else None
-                    }
-                )
-                messages.success(request, "Kapsam 4 verisi kaydedildi!")
-        
-        return redirect('carbon:input', firm_id=firm_id)
-    
-    # GET isteği için form verilerini hazırla
-    fuel_factors = EmissionFactor.objects.filter(factor_type='FUEL')
-    material_factors = EmissionFactor.objects.filter(factor_type='MATERIAL')
-    
-    # Mevcut verileri getir
-    current_year = request.GET.get('year', 2025)
-    current_month = request.GET.get('month', 1)
-    
-    scope1_data = Scope1Excel.objects.filter(
-        firm=firm,
-        period_year=current_year,
-        period_month=current_month
-    )
-    
-    scope2_data = Scope2Excel.objects.filter(
-        firm=firm,
-        period_year=current_year,
-        period_month=current_month
-    )
-    
-    scope4_data = Scope4Excel.objects.filter(
-        firm=firm,
-        period_year=current_year,
-        period_month=current_month
-    )
-    
-    context = {
-        'firm': firm,
-        'fuel_factors': fuel_factors,
-        'material_factors': material_factors,
-        'scope1_data': scope1_data,
-        'scope2_data': scope2_data,
-        'scope4_data': scope4_data,
-        'current_year': current_year,
-        'current_month': current_month,
-    }
-    
-    return render(request, 'carbon/input.html', context)
-
-@login_required
-def calculate_carbon(request, firm_id):
-    """Karbon hesaplama ve rapor oluşturma"""
-    
-    firm = get_object_or_404(Firm, pk=firm_id)
-    
-    if request.method == 'POST':
-        year = int(request.POST.get('year', 2025))
-        month = int(request.POST.get('month', 1))
-        
-        # Hesaplama servisi
-        calculator = CarbonCalculationService(
-            firm=firm,
-            year=year,
-            month=month,
-            user=request.user.user if hasattr(request.user, 'user') else None
-        )
-        
-        # Rapor oluştur
-        report = calculator.create_report()
-        
-        messages.success(request, f"Karbon raporu oluşturuldu! Toplam: {report.total_co2e:.2f} tCO2e")
-        
-        return redirect('carbon:report_detail', report_id=report.id)
-    
-    return redirect('carbon:dashboard')
-
-@login_required
-def report_detail(request, report_id):
-    """Rapor detay sayfası"""
-    
-    report = get_object_or_404(Report, pk=report_id)
-    
-    # Yetki kontrolü
-    if not request.user.is_superuser:
-        if hasattr(request.user, 'user'):
-            if report.firm not in request.user.user.firm.all():
-                messages.error(request, "Bu rapora erişim yetkiniz yok!")
-                return redirect('carbon:dashboard')
-    
-    # Kapsam verilerini getir
-    scope1_data = Scope1Excel.objects.filter(
-        firm=report.firm,
-        period_year=report.report_year,
-        period_month=report.report_month
-    )
-    
-    scope2_data = Scope2Excel.objects.filter(
-        firm=report.firm,
-        period_year=report.report_year,
-        period_month=report.report_month
-    )
-    
-    scope3_data = Scope3Excel.objects.filter(
-        firm=report.firm,
-        period_year=report.report_year,
-        period_month=report.report_month
-    )
-    
-    scope4_data = Scope4Excel.objects.filter(
-        firm=report.firm,
-        period_year=report.report_year,
-        period_month=report.report_month
-    )
-    
-    # Ürün dağılımları
-    product_allocations = report.product_allocations.all()
-    
-    # Grafik verisi hazırla
-    chart_data = {
-        'labels': ['Kapsam 1', 'Kapsam 2', 'Kapsam 3', 'Kapsam 4', 'Kapsam 5', 'Kapsam 6'],
-        'values': [
-            float(report.scope1_total),
-            float(report.scope2_total),
-            float(report.scope3_total),
-            float(report.scope4_total),
-            float(report.scope5_total),
-            float(report.scope6_total),
-        ]
-    }
-    
-    context = {
+        'selected_firm': selected_firm,
         'report': report,
         'scope1_data': scope1_data,
         'scope2_data': scope2_data,
-        'scope3_data': scope3_data,
         'scope4_data': scope4_data,
-        'product_allocations': product_allocations,
-        'chart_data': json.dumps(chart_data),
     }
     
-    return render(request, 'carbon/report_detail.html', context)
-
-
-@login_required
-def download_report(request, report_id):
-    """Raporu Excel olarak indir"""
-    
-    report = get_object_or_404(Report, pk=report_id)
-    
-    # Yetki kontrolü
-    if not request.user.is_superuser:
-        if hasattr(request.user, 'user'):
-            if report.firm not in request.user.user.firm.all():
-                messages.error(request, "Bu rapora erişim yetkiniz yok!")
-                return redirect('carbon:dashboard')
-    
-    # Excel oluştur
-    calculator = CarbonCalculationService(
-        firm=report.firm,
-        year=report.report_year,
-        month=report.report_month
-    )
-    calculator.report = report
-    
-    excel_file = calculator.generate_excel_report()
-    
-    # Response oluştur
-    response = HttpResponse(
-        excel_file.getvalue(),
-        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    )
-    filename = f"karbon_raporu_{report.firm.name}_{report.report_year}_{report.report_month or 'yillik'}.xlsx"
-    response['Content-Disposition'] = f'attachment; filename="{filename}"'
-    
-    return response
-
-
-@login_required
-@require_POST
-def load_example_data(request, firm_id):
-    """Excel'deki örnek verileri yükle"""
-    
-    firm = get_object_or_404(Firm, pk=firm_id)
-    
-    # Yetki kontrolü
-    if not request.user.is_superuser:
-        messages.error(request, "Bu işlem için yetkiniz yok!")
-        return redirect('carbon:dashboard')
-    
-    year = int(request.POST.get('year', 2025))
-    month = int(request.POST.get('month', 1))
-    
-    # Servisi çalıştır
-    calculator = CarbonCalculationService(
-        firm=firm,
-        year=year,
-        month=month,
-        user=request.user.user if hasattr(request.user, 'user') else None
-    )
-    
-    calculator.load_example_data()
-    
-    messages.success(request, "Excel'deki örnek veriler başarıyla yüklendi!")
-    
-    return redirect('carbon:input', firm_id=firm_id)
-
-class CarbonReportViewSet(viewsets.ModelViewSet):
-    """Karbon raporları API endpoint'i"""
-    
-    serializer_class = CompanyCarbonReportSerializer
-    permission_classes = [IsAuthenticated]
-    
-    def get_queryset(self):
-        """Kullanıcının yetkili olduğu firma raporları"""
-        user = self.request.user
-        if user.is_superuser:
-            return CompanyCarbonReport.objects.all()
-        
-        # Kullanıcının firması varsa sadece o firmanın raporları
-        return CompanyCarbonReport.objects.filter(
-            company__users=user
-        )
-    
-    @action(detail=False, methods=['post'])
-    def calculate(self, request):
-        """Karbon ayak izi hesaplama endpoint'i
-        
-        POST /api/carbon-reports/calculate/
-        {
-            "company_id": 1,
-            "year": 2025,
-            "month": 1,
-            "scope1": [...],
-            "scope2": [...],
-            "scope3": [...],
-            "scope4": [...],
-            "products": [...]
-        }
-        """
-        
-        serializer = CarbonCalculationInputSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        
-        data = serializer.validated_data
-        
-        # Hesaplama servisini çalıştır
-        calculator = CarbonCalculatorService(
-            company=data['company'],
-            year=data['year'],
-            month=data.get('month')
-        )
-        
-        try:
-            results = calculator.generate_full_report(data)
-            
-            return Response({
-                'success': True,
-                'report_id': calculator.report.id,
-                'results': results
-            })
-            
-        except Exception as e:
-            return Response({
-                'success': False,
-                'error': str(e)
-            }, status=status.HTTP_400_BAD_REQUEST)
-    
-    @action(detail=True, methods=['get'])
-    def download_excel(self, request, pk=None):
-        """Raporu Excel olarak indir"""
-        report = self.get_object()
-        
-        # Excel oluşturma servisi
-        excel_service = CarbonReportExcelService(report)
-        excel_file = excel_service.generate()
-        
-        response = HttpResponse(
-            excel_file,
-            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-        )
-        response['Content-Disposition'] = f'attachment; filename=karbon_raporu_{report.id}.xlsx'
-        
-        return response
-    
-    @action(detail=True, methods=['post'])
-    def approve(self, request, pk=None):
-        """Raporu onayla"""
-        report = self.get_object()
-        
-        if not request.user.has_perm('carbon.approve_report'):
-            return Response({
-                'error': 'Rapor onaylama yetkiniz yok'
-            }, status=status.HTTP_403_FORBIDDEN)
-        
-        report.status = 'APPROVED'
-        report.save()
-        
-        return Response({
-            'success': True,
-            'message': 'Rapor onaylandı'
-        })
-
-
-class EmissionFactorViewSet(viewsets.ModelViewSet):
-    """Emisyon faktörleri yönetimi"""
-    
-    queryset = EmissionFactor.objects.all()
-    serializer_class = EmissionFactorSerializer
-    permission_classes = [IsAuthenticated]
-    
-    def get_queryset(self):
-        """Tarih bazlı filtreleme"""
-        queryset = super().get_queryset()
-        
-        # Query parametreleri
-        factor_type = self.request.query_params.get('type')
-        valid_date = self.request.query_params.get('date')
-        
-        if factor_type:
-            queryset = queryset.filter(factor_type=factor_type)
-        
-        if valid_date:
-            date_obj = datetime.strptime(valid_date, '%Y-%m-%d').date()
-            queryset = queryset.filter(
-                valid_from__lte=date_obj,
-                Q(valid_to__gte=date_obj) | Q(valid_to__isnull=True)
-            )
-        
-        return queryset
-    
-    @action(detail=False, methods=['post'])
-    def bulk_upload(self, request):
-        """Excel'den toplu emisyon faktörü yükleme"""
-        
-        file = request.FILES.get('file')
-        if not file:
-            return Response({
-                'error': 'Dosya yüklenmedi'
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
-        try:
-            # Excel dosyasını oku ve faktörleri yükle
-            import pandas as pd
-            df = pd.read_excel(file)
-            
-            created_count = 0
-            for _, row in df.iterrows():
-                EmissionFactor.objects.create(
-                    name=row['name'],
-                    factor_type=row['type'],
-                    unit=row['unit'],
-                    co2_factor=row['co2_factor'],
-                    ch4_factor=row.get('ch4_factor', 0),
-                    n2o_factor=row.get('n2o_factor', 0),
-                    nkd=row.get('nkd'),
-                    density=row.get('density'),
-                    valid_from=row['valid_from'],
-                    valid_to=row.get('valid_to'),
-                    source=row.get('source', 'Excel Import')
-                )
-                created_count += 1
-            
-            return Response({
-                'success': True,
-                'created': created_count
-            })
-            
-        except Exception as e:
-            return Response({
-                'error': f'Dosya işlenirken hata: {str(e)}'
-            }, status=status.HTTP_400_BAD_REQUEST)
+    return render(request, 'carbon/excel_report.html', context)
