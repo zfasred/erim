@@ -12,13 +12,13 @@ import pandas as pd
 from io import BytesIO
 
 from .models import (
-    CoefficientType, EmissionFactor, FuelType,
+    CarbonCoefficient, CoefficientType, EmissionFactor, FuelType,
     Scope1Data, Scope2Data, Scope3Data, Scope4Data,
     InputCategory, InputData, Report,
     FuelType, GWPValues, Scope1Excel, Scope2Excel, Scope4Excel, ExcelReport
 )
 from .forms import (
-    CoefficientTypeForm, EmissionFactorForm, FuelTypeForm,
+    CarbonCoefficientForm, CoefficientTypeForm, EmissionFactorForm, FuelTypeForm,
     Scope1DataForm, Scope2DataForm, Scope3DataForm, Scope4DataForm,
     UserFirmAccessForm, BulkUploadForm, ReportGenerateForm,
     InputCategoryForm, InputDataForm, ReportForm
@@ -34,6 +34,167 @@ def get_user_firms(request):
         return Firm.objects.filter(user_associations__user=request.user.user)
     else:
         return Firm.objects.filter(user_associations__user=request.user)
+
+
+@login_required
+@permission_required('carbon.view_management_carbon', raise_exception=True)
+def coefficient_list_view(request):
+    """Karbon katsayıları listesi"""
+    
+    # Filtreleme parametreleri
+    scope = request.GET.get('scope')
+    subscope = request.GET.get('subscope')
+    coefficient_type = request.GET.get('coefficient_type')
+    name_search = request.GET.get('name')
+    
+    # Temel sorgu
+    coefficients = CarbonCoefficient.objects.all()
+    
+    # Filtreleri uygula
+    if scope:
+        coefficients = coefficients.filter(scope=scope)
+    if subscope:
+        coefficients = coefficients.filter(subscope=subscope)
+    if coefficient_type:
+        coefficients = coefficients.filter(coefficient_type=coefficient_type)
+    if name_search:
+        coefficients = coefficients.filter(name__icontains=name_search)
+    
+    # Tarihe göre sırala
+    coefficients = coefficients.order_by('scope', 'subscope', 'coefficient_type', 'name', '-valid_from')
+    
+    context = {
+        'coefficients': coefficients,
+        'scope_choices': CarbonCoefficient.SCOPE_CHOICES,
+        'subscope_choices': CarbonCoefficient.SUBSCOPE_CHOICES,
+        'coefficient_type_choices': CarbonCoefficient.COEFFICIENT_TYPE_CHOICES,
+        'selected_scope': scope,
+        'selected_subscope': subscope,
+        'selected_coefficient_type': coefficient_type,
+        'name_search': name_search,
+    }
+    
+    return render(request, 'carbon/coefficient_list.html', context)
+
+
+@login_required
+@permission_required('carbon.view_management_carbon', raise_exception=True)
+def coefficient_create_view(request):
+    """Yeni karbon katsayısı ekleme"""
+    
+    if request.method == 'POST':
+        form = CarbonCoefficientForm(request.POST)
+        if form.is_valid():
+            coefficient = form.save(commit=False)
+            coefficient.created_by = request.user.user if hasattr(request.user, 'user') else request.user
+            coefficient.save()
+            messages.success(request, "Karbon katsayısı başarıyla eklendi.")
+            return redirect('carbon:coefficient-list')
+    else:
+        form = CarbonCoefficientForm()
+    
+    context = {
+        'form': form,
+        'title': 'Yeni Karbon Katsayısı',
+        'subscope_data': json.dumps(dict(CarbonCoefficient.SUBSCOPE_CHOICES)),
+    }
+    
+    return render(request, 'carbon/coefficient_form.html', context)
+
+
+@login_required
+@permission_required('carbon.view_management_carbon', raise_exception=True)
+def coefficient_update_view(request, pk):
+    """Karbon katsayısı güncelleme"""
+    
+    coefficient = get_object_or_404(CarbonCoefficient, pk=pk)
+    
+    if request.method == 'POST':
+        form = CarbonCoefficientForm(request.POST, instance=coefficient)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Karbon katsayısı başarıyla güncellendi.")
+            return redirect('carbon:coefficient-list')
+    else:
+        form = CarbonCoefficientForm(instance=coefficient)
+    
+    context = {
+        'form': form,
+        'title': 'Karbon Katsayısı Güncelle',
+        'coefficient': coefficient,
+        'subscope_data': json.dumps(dict(CarbonCoefficient.SUBSCOPE_CHOICES)),
+    }
+    
+    return render(request, 'carbon/coefficient_form.html', context)
+
+
+@login_required
+@permission_required('carbon.view_management_carbon', raise_exception=True)
+def coefficient_delete_view(request, pk):
+    """Karbon katsayısı silme"""
+    
+    coefficient = get_object_or_404(CarbonCoefficient, pk=pk)
+    
+    if request.method == 'POST':
+        coefficient.delete()
+        messages.success(request, "Karbon katsayısı başarıyla silindi.")
+        return redirect('carbon:coefficient-list')
+    
+    context = {
+        'coefficient': coefficient,
+    }
+    
+    return render(request, 'carbon/coefficient_confirm_delete.html', context)
+
+
+@login_required
+def ajax_get_subscopes(request):
+    """AJAX ile alt kapsam seçeneklerini getir"""
+    
+    scope = request.GET.get('scope')
+    subscopes = []
+    
+    if scope:
+        for code, label in CarbonCoefficient.SUBSCOPE_CHOICES:
+            if code.startswith(scope + '.'):
+                subscopes.append({'code': code, 'label': label})
+    
+    return JsonResponse({'subscopes': subscopes})
+
+
+@login_required
+def ajax_get_coefficient_types(request):
+    """AJAX ile belirli bir alt kapsam için uygun katsayı türlerini getir"""
+    
+    subscope = request.GET.get('subscope')
+    
+    # Alt kapsama göre uygun katsayı türlerini belirle
+    coefficient_types_map = {
+        '1.1': ['EF_CO2', 'EF_CH4', 'EF_N2O', 'NKD', 'YOGUNLUK_KG_M3'],
+        '1.2': ['EF_CO2', 'EF_CH4', 'EF_N2O', 'NKD', 'YOGUNLUK_TON_LT'],
+        '1.3': ['EF_CO2', 'EF_CH4', 'EF_N2O', 'NKD'],
+        '1.4': ['EF_CO2', 'EF_CH4', 'EF_N2O', 'NKD'],
+        '1.5': ['EF_CO2', 'EF_CH4', 'EF_N2O', 'NKD'],
+        '2.1': ['EF_TCO2_MWH'],
+        '3.1': ['EF_CO2', 'EF_CH4', 'EF_N2O', 'NKD', 'YOGUNLUK_KG_LT'],
+        '3.2': ['EF_CO2', 'EF_CH4', 'EF_N2O', 'NKD', 'YOGUNLUK_KG_LT'],
+        '3.3': ['EF_CO2', 'EF_CH4', 'EF_N2O', 'NKD', 'YOGUNLUK_KG_LT'],
+        '3.4': ['EF_CO2', 'EF_CH4', 'EF_N2O', 'NKD', 'YOGUNLUK_TON_LT'],
+        '3.5': ['EF_CO2', 'EF_CH4', 'EF_N2O', 'NKD', 'YOGUNLUK_KG_LT', 'YOGUNLUK_TON_LT'],
+        '4.1': ['EF_KG_CO2_KG', 'EF_TCO2E_KG'],
+        '4.2': ['EF_KG_CO2_KG', 'EF_TCO2E_KG'],
+        '4.3': ['EF_KG_CO2E_KWH', 'EF_KG_CO2E_M3', 'EF_KG_CO2_TON', 'EF_KG_CO2_M3', 'EF_CO2', 'EF_CH4', 'EF_N2O', 'NKD'],
+    }
+    
+    types = []
+    if subscope and subscope in coefficient_types_map:
+        allowed_types = coefficient_types_map[subscope]
+        for code, label in CarbonCoefficient.COEFFICIENT_TYPE_CHOICES:
+            if code in allowed_types:
+                types.append({'code': code, 'label': label})
+    
+    return JsonResponse({'coefficient_types': types})
+
 
 # Dashboard View
 @login_required
@@ -379,19 +540,43 @@ def process_scope1_excel(df, user):
             # Hataları logla
             print(f"Satır {index} işlenirken hata: {e}")
 
-# Mevcut view'larınızı koruyorum
 @login_required
 @permission_required('carbon.view_management_carbon', raise_exception=True)
 def management_list_view(request):
-    factors = EmissionFactor.objects.all()
-    types = CoefficientType.objects.all()
-    fuel_types = FuelType.objects.all()
+    """Karbon yönetim ana sayfası - Katsayı yönetimi dahil"""
+    
+    # Filtreleme parametreleri
+    scope = request.GET.get('scope')
+    subscope = request.GET.get('subscope')
+    valid_from = request.GET.get('valid_from')
+    valid_to = request.GET.get('valid_to')
+    
+    # Katsayıları getir
+    coefficients = CarbonCoefficient.objects.all()
+    
+    # Filtreleri uygula
+    if scope:
+        coefficients = coefficients.filter(scope=scope)
+    if subscope:
+        coefficients = coefficients.filter(subscope=subscope)
+    if valid_from:
+        coefficients = coefficients.filter(valid_from__gte=valid_from)
+    if valid_to:
+        coefficients = coefficients.filter(valid_to__lte=valid_to)
+    
+    # Tarihe göre sırala
+    coefficients = coefficients.order_by('scope', 'subscope', 'coefficient_type', 'name', '-valid_from')
+    
     context = {
-        'factors': factors, 
-        'types': types,
-        'fuel_types': fuel_types
+        'coefficients': coefficients,
+        'subscope_choices': CarbonCoefficient.SUBSCOPE_CHOICES,
+        'selected_scope': scope,
+        'selected_subscope': subscope,
+        'selected_valid_from': valid_from,
+        'selected_valid_to': valid_to,
     }
-
+    
+    # Kullanıcı-Firma ilişkilendirme formu (eğer yetkisi varsa)
     if request.user.has_perm('carbon.can_manage_user_firm_access'):
         if request.method == 'POST':
             form = UserFirmAccessForm(request.POST)
@@ -400,14 +585,15 @@ def management_list_view(request):
                 selected_firm = form.cleaned_data['firm']
                 try:
                     UserFirm.objects.get(user=selected_user, firm=selected_firm)
+                    messages.info(request, "Bu kullanıcı zaten bu firmaya atanmış.")
                 except UserFirm.DoesNotExist:
                     UserFirm.objects.create(user=selected_user, firm=selected_firm, create=timezone.now())
-                    messages.success(request, f"'{selected_user.username}' kullanıcısı '{selected_firm.name}' firmasına başarıyla atandı.")
+                    messages.success(request, f"'{selected_user.name}' kullanıcısı '{selected_firm.name}' firmasına başarıyla atandı.")
                 return redirect('carbon:management-list')
         else:
             form = UserFirmAccessForm()
         context['user_firm_form'] = form
-
+    
     return render(request, 'carbon/management_list.html', context)
 
 

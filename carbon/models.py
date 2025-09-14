@@ -5,6 +5,101 @@ from core.models import Firm, User
 import json
 from decimal import Decimal
 
+class CarbonCoefficient(models.Model):
+    """Karbon katsayıları - tüm kapsamlar için merkezi yönetim"""
+    
+    SCOPE_CHOICES = [
+        ('1', 'KAPSAM 1'),
+        ('2', 'KAPSAM 2'), 
+        ('3', 'KAPSAM 3'),
+        ('4', 'KAPSAM 4'),
+    ]
+    
+    SUBSCOPE_CHOICES = [
+        # Kapsam 1
+        ('1.1', 'Kapsam 1.1'),
+        ('1.2', 'Kapsam 1.2'),
+        ('1.3', 'Kapsam 1.3'),
+        ('1.4', 'Kapsam 1.4'),
+        ('1.5', 'Kapsam 1.5'),
+        # Kapsam 2
+        ('2.1', 'Kapsam 2.1'),
+        # Kapsam 3
+        ('3.1', 'Kapsam 3.1'),
+        ('3.2', 'Kapsam 3.2'),
+        ('3.3', 'Kapsam 3.3'),
+        ('3.4', 'Kapsam 3.4'),
+        ('3.5', 'Kapsam 3.5'),
+        # Kapsam 4
+        ('4.1', 'Kapsam 4.1'),
+        ('4.2', 'Kapsam 4.2'),
+        ('4.3', 'Kapsam 4.3'),
+    ]
+    
+    COEFFICIENT_TYPE_CHOICES = [
+        ('EF_CO2', 'EF (kgCO2/TJ)'),
+        ('EF_CH4', 'EF (kgCH4/TJ)'),
+        ('EF_N2O', 'EF (kgN2O/TJ)'),
+        ('NKD', 'NKD (TJ/Gg)'),
+        ('YOGUNLUK_KG_M3', 'Yoğunluk (kg/m³)'),
+        ('YOGUNLUK_TON_LT', 'Yoğunluk (ton/lt)'),
+        ('YOGUNLUK_KG_LT', 'Yoğunluk (kg/litre)'),
+        ('EF_TCO2_MWH', 'EF tCO2 (tCO2/MWh)'),
+        ('EF_KG_CO2_KG', 'EF (kgCO2/kg)'),
+        ('EF_TCO2E_KG', 'EF (tCO2e/kg)'),
+        ('EF_KG_CO2E_KWH', 'EF (kgCO2e/kWh)'),
+        ('EF_KG_CO2E_M3', 'EF (kgCO2e/m³)'),
+        ('EF_KG_CO2_TON', 'EF (kgCO2/ton)'),
+        ('EF_KG_CO2_M3', 'EF (kgCO2/m³)'),
+    ]
+    
+    # Ana alanlar
+    scope = models.CharField(max_length=1, choices=SCOPE_CHOICES, verbose_name="Kapsam")
+    subscope = models.CharField(max_length=5, choices=SUBSCOPE_CHOICES, verbose_name="Alt Kapsam")
+    coefficient_type = models.CharField(max_length=20, choices=COEFFICIENT_TYPE_CHOICES, verbose_name="Katsayı Türü")
+    
+    # İsim alanı - "Genel" veya spesifik değerler (Doğalgaz, Otel, Çelik vs.)
+    name = models.CharField(max_length=100, default="Genel", verbose_name="İsim")
+    
+    # Değer ve birim
+    value = models.DecimalField(max_digits=20, decimal_places=10, verbose_name="Değer")
+    unit = models.CharField(max_length=50, verbose_name="Birim")
+    
+    # Tarih bazlı geçerlilik
+    valid_from = models.DateField(verbose_name="Geçerlilik Başlangıcı")
+    valid_to = models.DateField(null=True, blank=True, verbose_name="Geçerlilik Bitişi")
+    
+    # Ek bilgiler
+    source = models.CharField(max_length=200, blank=True, verbose_name="Kaynak (ör: IPCC, DEFRA)")
+    notes = models.TextField(blank=True, verbose_name="Notlar")
+    
+    # Zaman damgaları
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name="created_coefficients")
+
+    class Meta:
+        verbose_name = "Karbon Katsayısı"
+        verbose_name_plural = "Karbon Katsayıları"
+        ordering = ['scope', 'subscope', 'coefficient_type', 'name', '-valid_from']
+        # Aynı katsayı kombinasyonu için çakışan tarih aralıklarını engellemek isteyebiliriz
+        unique_together = [['scope', 'subscope', 'coefficient_type', 'name', 'valid_from']]
+
+    def __str__(self):
+        return f"{self.get_subscope_display()} - {self.get_coefficient_type_display()} - {self.name}"
+    
+    def is_active(self, date=None):
+        """Belirli bir tarihte bu katsayının geçerli olup olmadığını kontrol eder"""
+        if date is None:
+            from django.utils import timezone
+            date = timezone.now().date()
+        
+        if self.valid_from > date:
+            return False
+        if self.valid_to and self.valid_to < date:
+            return False
+        return True
+
 class CoefficientType(models.Model):
     """Katsayı türlerini tanımlar (EF_CO2, EF_CH4, EF_N2O, NCV vb.)"""
     name = models.CharField(max_length=100, verbose_name="Katsayı Türü")

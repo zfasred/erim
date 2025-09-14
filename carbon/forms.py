@@ -3,11 +3,100 @@ from django import forms
 from django.core.exceptions import ValidationError
 from datetime import date
 from .models import (
-    CoefficientType, EmissionFactor, FuelType,
+    CarbonCoefficient, CoefficientType, EmissionFactor, FuelType,
     Scope1Data, Scope2Data, Scope3Data, Scope4Data,
     InputCategory, InputData, Report
 )
 from core.models import User as CoreUser, Firm
+
+class CarbonCoefficientForm(forms.ModelForm):
+    """Karbon katsayıları için form"""
+    
+    class Meta:
+        model = CarbonCoefficient
+        fields = ['scope', 'subscope', 'coefficient_type', 'name', 'value', 
+                 'unit', 'valid_from', 'valid_to', 'source', 'notes']
+        widgets = {
+            'valid_from': forms.DateInput(attrs={'type': 'date'}),
+            'valid_to': forms.DateInput(attrs={'type': 'date'}),
+            'value': forms.NumberInput(attrs={'step': '0.0000000001'}),
+            'notes': forms.Textarea(attrs={'rows': 3}),
+            'scope': forms.Select(attrs={'id': 'id_scope_coefficient'}),
+            'subscope': forms.Select(attrs={'id': 'id_subscope_coefficient'}),
+        }
+        labels = {
+            'scope': 'Kapsam',
+            'subscope': 'Alt Kapsam',
+            'coefficient_type': 'Katsayı Türü',
+            'name': 'İsim (Yakıt/Malzeme)',
+            'value': 'Değer',
+            'unit': 'Birim',
+            'valid_from': 'Geçerlilik Başlangıcı',
+            'valid_to': 'Geçerlilik Bitişi',
+            'source': 'Kaynak',
+            'notes': 'Notlar',
+        }
+        help_texts = {
+            'name': 'Genel katsayılar için "Genel" yazın veya spesifik isim girin (ör: Doğalgaz, Otel, Çelik)',
+            'valid_to': 'Boş bırakılırsa süresiz geçerli olur',
+            'source': 'Katsayı kaynağı (ör: IPCC 2023, DEFRA 2024)',
+        }
+    
+def __init__(self, *args, **kwargs):
+    super().__init__(*args, **kwargs)
+    
+    # Alt kapsam seçeneklerini ayarla
+    if self.data.get('scope'):
+        # POST request'te scope var ise (form gönderilmiş)
+        scope = self.data.get('scope')
+        subscope_choices = [('', '-- Alt Kapsam Seçin --')]
+        for code, label in CarbonCoefficient.SUBSCOPE_CHOICES:
+            if code.startswith(scope + '.'):
+                subscope_choices.append((code, label))
+        self.fields['subscope'].choices = subscope_choices
+        
+    elif self.instance and self.instance.pk:
+        # Düzenleme modunda
+        scope = self.instance.scope
+        subscope_choices = []
+        for code, label in CarbonCoefficient.SUBSCOPE_CHOICES:
+            if code.startswith(scope + '.'):
+                subscope_choices.append((code, label))
+        self.fields['subscope'].choices = subscope_choices
+        
+    else:
+        # Yeni kayıt modunda ve GET request
+        self.fields['subscope'].choices = [('', '-- Önce Kapsam Seçin --')]
+    
+    # Katsayı türü seçeneklerini ayarla (isteğe bağlı - daha iyi UX için)
+    if self.data.get('subscope') or (self.instance and self.instance.subscope):
+        subscope = self.data.get('subscope') if self.data.get('subscope') else self.instance.subscope
+        
+        coefficient_types_map = {
+            '1.1': ['EF_CO2', 'EF_CH4', 'EF_N2O', 'NKD', 'YOGUNLUK_KG_M3'],
+            '1.2': ['EF_CO2', 'EF_CH4', 'EF_N2O', 'NKD', 'YOGUNLUK_TON_LT'],
+            '1.3': ['EF_CO2', 'EF_CH4', 'EF_N2O', 'NKD'],
+            '1.4': ['EF_CO2', 'EF_CH4', 'EF_N2O', 'NKD'],
+            '1.5': ['EF_CO2', 'EF_CH4', 'EF_N2O', 'NKD'],
+            '2.1': ['EF_TCO2_MWH'],
+            '3.1': ['EF_CO2', 'EF_CH4', 'EF_N2O', 'NKD', 'YOGUNLUK_KG_LT'],
+            '3.2': ['EF_CO2', 'EF_CH4', 'EF_N2O', 'NKD', 'YOGUNLUK_KG_LT'],
+            '3.3': ['EF_CO2', 'EF_CH4', 'EF_N2O', 'NKD', 'YOGUNLUK_KG_LT'],
+            '3.4': ['EF_CO2', 'EF_CH4', 'EF_N2O', 'NKD', 'YOGUNLUK_TON_LT'],
+            '3.5': ['EF_CO2', 'EF_CH4', 'EF_N2O', 'NKD', 'YOGUNLUK_KG_LT', 'YOGUNLUK_TON_LT'],
+            '4.1': ['EF_KG_CO2_KG', 'EF_TCO2E_KG'],
+            '4.2': ['EF_KG_CO2_KG', 'EF_TCO2E_KG'],
+            '4.3': ['EF_KG_CO2E_KWH', 'EF_KG_CO2E_M3', 'EF_KG_CO2_TON', 'EF_KG_CO2_M3', 'EF_CO2', 'EF_CH4', 'EF_N2O', 'NKD'],
+        }
+        
+        if subscope in coefficient_types_map:
+            allowed_types = coefficient_types_map[subscope]
+            coefficient_choices = []
+            for code, label in CarbonCoefficient.COEFFICIENT_TYPE_CHOICES:
+                if code in allowed_types:
+                    coefficient_choices.append((code, label))
+            self.fields['coefficient_type'].choices = coefficient_choices
+
 
 # Mevcut formlarınız
 class UserFirmAccessForm(forms.Form):
