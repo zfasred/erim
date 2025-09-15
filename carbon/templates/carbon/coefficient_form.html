@@ -1,0 +1,250 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ title }} - Ekonaz Portal{% endblock %}
+
+{% block content %}
+<h1>{{ title }}</h1>
+
+<form method="post" style="max-width: 800px;">
+    {% csrf_token %}
+    
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+        <!-- Sol Kolon -->
+        <div>
+            <div style="margin-bottom: 15px;">
+                <label for="{{ form.scope.id_for_label }}">{{ form.scope.label }}:</label>
+                {{ form.scope }}
+                {% if form.scope.errors %}
+                    <div style="color: red; font-size: 0.9em;">{{ form.scope.errors }}</div>
+                {% endif %}
+            </div>
+            
+            <div style="margin-bottom: 15px;">
+                <label for="{{ form.subscope.id_for_label }}">{{ form.subscope.label }}:</label>
+                {{ form.subscope }}
+                {% if form.subscope.errors %}
+                    <div style="color: red; font-size: 0.9em;">{{ form.subscope.errors }}</div>
+                {% endif %}
+            </div>
+            
+            <div style="margin-bottom: 15px;">
+                <label for="{{ form.coefficient_type.id_for_label }}">{{ form.coefficient_type.label }}:</label>
+                {{ form.coefficient_type }}
+                {% if form.coefficient_type.errors %}
+                    <div style="color: red; font-size: 0.9em;">{{ form.coefficient_type.errors }}</div>
+                {% endif %}
+            </div>
+            
+            <div style="margin-bottom: 15px;">
+                <label for="{{ form.name.id_for_label }}">{{ form.name.label }}:</label>
+                {{ form.name }}
+                {% if form.name.help_text %}
+                    <small style="color: #6c757d;">{{ form.name.help_text }}</small>
+                {% endif %}
+                {% if form.name.errors %}
+                    <div style="color: red; font-size: 0.9em;">{{ form.name.errors }}</div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- Sağ Kolon -->
+        <div>
+            <div style="margin-bottom: 15px;">
+                <label for="{{ form.value.id_for_label }}">{{ form.value.label }}:</label>
+                {{ form.value }}
+                {% if form.value.errors %}
+                    <div style="color: red; font-size: 0.9em;">{{ form.value.errors }}</div>
+                {% endif %}
+            </div>
+            
+            <div style="margin-bottom: 15px;">
+                <label for="{{ form.unit.id_for_label }}">{{ form.unit.label }}:</label>
+                {{ form.unit }}
+                {% if form.unit.errors %}
+                    <div style="color: red; font-size: 0.9em;">{{ form.unit.errors }}</div>
+                {% endif %}
+            </div>
+            
+            <div style="margin-bottom: 15px;">
+                <label for="{{ form.valid_from.id_for_label }}">{{ form.valid_from.label }}:</label>
+                {{ form.valid_from }}
+                {% if form.valid_from.errors %}
+                    <div style="color: red; font-size: 0.9em;">{{ form.valid_from.errors }}</div>
+                {% endif %}
+            </div>
+            
+            <div style="margin-bottom: 15px;">
+                <label for="{{ form.valid_to.id_for_label }}">{{ form.valid_to.label }}:</label>
+                {{ form.valid_to }}
+                {% if form.valid_to.help_text %}
+                    <small style="color: #6c757d;">{{ form.valid_to.help_text }}</small>
+                {% endif %}
+                {% if form.valid_to.errors %}
+                    <div style="color: red; font-size: 0.9em;">{{ form.valid_to.errors }}</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <!-- Tam genişlik alanlar -->
+    <div style="margin-bottom: 15px;">
+        <label for="{{ form.source.id_for_label }}">{{ form.source.label }}:</label>
+        {{ form.source }}
+        {% if form.source.help_text %}
+            <small style="color: #6c757d;">{{ form.source.help_text }}</small>
+        {% endif %}
+        {% if form.source.errors %}
+            <div style="color: red; font-size: 0.9em;">{{ form.source.errors }}</div>
+        {% endif %}
+    </div>
+    
+    <div style="margin-bottom: 15px;">
+        <label for="{{ form.notes.id_for_label }}">{{ form.notes.label }}:</label>
+        {{ form.notes }}
+        {% if form.notes.errors %}
+            <div style="color: red; font-size: 0.9em;">{{ form.notes.errors }}</div>
+        {% endif %}
+    </div>
+    
+    <!-- Form hataları -->
+    {% if form.non_field_errors %}
+        <div style="background-color: #f8d7da; color: #721c24; padding: 10px; border-radius: 4px; margin-bottom: 15px;">
+            {{ form.non_field_errors }}
+        </div>
+    {% endif %}
+    
+    <!-- Butonlar -->
+    <div style="margin-top: 20px;">
+        <button type="submit" style="padding: 10px 20px; background-color: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer;">
+            Kaydet
+        </button>
+        <a href="{% url 'carbon:coefficient-list' %}" style="padding: 10px 20px; background-color: #6c757d; color: white; text-decoration: none; border-radius: 4px; display: inline-block; margin-left: 10px;">
+            İptal
+        </a>
+    </div>
+</form>
+
+<script>
+// Alt kapsam verilerini JavaScript değişkenine al
+const subscopeData = {{ subscope_data|safe }};
+const coefficientTypesMap = {
+    '1.1': ['EF_CO2', 'EF_CH4', 'EF_N2O', 'NKD', 'YOGUNLUK_KG_M3'],
+    '1.2': ['EF_CO2', 'EF_CH4', 'EF_N2O', 'NKD', 'YOGUNLUK_TON_LT'],
+    '1.3': ['EF_CO2', 'EF_CH4', 'EF_N2O', 'NKD'],
+    '1.4': ['EF_CO2', 'EF_CH4', 'EF_N2O', 'NKD'],
+    '1.5': ['EF_CO2', 'EF_CH4', 'EF_N2O', 'NKD'],
+    '2.1': ['EF_TCO2_MWH'],
+    '3.1': ['EF_CO2', 'EF_CH4', 'EF_N2O', 'NKD', 'YOGUNLUK_KG_LT'],
+    '3.2': ['EF_CO2', 'EF_CH4', 'EF_N2O', 'NKD', 'YOGUNLUK_KG_LT'],
+    '3.3': ['EF_CO2', 'EF_CH4', 'EF_N2O', 'NKD', 'YOGUNLUK_KG_LT'],
+    '3.4': ['EF_CO2', 'EF_CH4', 'EF_N2O', 'NKD', 'YOGUNLUK_TON_LT'],
+    '3.5': ['EF_CO2', 'EF_CH4', 'EF_N2O', 'NKD', 'YOGUNLUK_KG_LT', 'YOGUNLUK_TON_LT', 'EF_KG_CO2E_ODA'],
+    '4.1': ['EF_KG_CO2_KG', 'EF_TCO2E_KG'],
+    '4.2': ['EF_KG_CO2_KG', 'EF_TCO2E_KG'],
+    '4.3': ['EF_KG_CO2E_KWH', 'EF_KG_CO2E_M3', 'EF_KG_CO2_TON', 'EF_KG_CO2_M3', 'EF_CO2', 'EF_CH4', 'EF_N2O', 'NKD'],
+};
+
+// Kapsam değiştiğinde alt kapsamları güncelle
+document.getElementById('id_scope_coefficient').addEventListener('change', function() {
+    const scope = this.value;
+    const subscopeSelect = document.getElementById('id_subscope_coefficient');
+    
+    // Mevcut değeri sakla
+    const currentValue = subscopeSelect.value;
+    
+    // Seçenekleri temizle
+    subscopeSelect.innerHTML = '';
+    
+    if (!scope) {
+        subscopeSelect.innerHTML = '<option value="">-- Önce Kapsam Seçin --</option>';
+        subscopeSelect.disabled = true;
+        return;
+    }
+    
+    // İlgili alt kapsamları ekle
+    subscopeSelect.disabled = false;
+    subscopeSelect.innerHTML = '<option value="">-- Alt Kapsam Seçin --</option>';
+    
+    for (const [code, label] of Object.entries(subscopeData)) {
+        if (code.startsWith(scope + '.')) {
+            const option = document.createElement('option');
+            option.value = code;
+            option.textContent = label;
+            if (code === currentValue) {
+                option.selected = true;
+            }
+            subscopeSelect.appendChild(option);
+        }
+    }
+    
+    // Alt kapsam değişikliğini tetikle
+    subscopeSelect.dispatchEvent(new Event('change'));
+});
+
+// Alt kapsam değiştiğinde katsayı türlerini güncelle
+document.getElementById('id_subscope_coefficient').addEventListener('change', function() {
+    const subscope = this.value;
+    const coefficientSelect = document.getElementById('id_coefficient_type');
+    
+    if (!subscope || !coefficientTypesMap[subscope]) {
+        // Tüm seçenekleri göster
+        Array.from(coefficientSelect.options).forEach(option => {
+            option.style.display = '';
+        });
+        return;
+    }
+    
+    // İlgili katsayı türlerini göster, diğerlerini gizle
+    const allowedTypes = coefficientTypesMap[subscope];
+    Array.from(coefficientSelect.options).forEach(option => {
+        if (option.value === '' || allowedTypes.includes(option.value)) {
+            option.style.display = '';
+        } else {
+            option.style.display = 'none';
+        }
+    });
+    
+    // Seçili değer uygun değilse sıfırla
+    if (coefficientSelect.value && !allowedTypes.includes(coefficientSelect.value)) {
+        coefficientSelect.value = '';
+    }
+});
+
+// Alt kapsam değiştiğinde birim alanını otomatik doldur
+document.getElementById('id_coefficient_type').addEventListener('change', function() {
+    const coefficientType = this.value;
+    const unitField = document.getElementById('id_unit');
+    
+    // Katsayı türüne göre varsayılan birim öner
+    const unitMap = {
+        'EF_CO2': 'kgCO2/TJ',
+        'EF_CH4': 'kgCH4/TJ',
+        'EF_N2O': 'kgN2O/TJ',
+        'NKD': 'TJ/Gg',
+        'YOGUNLUK_KG_M3': 'kg/m³',
+        'YOGUNLUK_TON_LT': 'ton/lt',
+        'YOGUNLUK_KG_LT': 'kg/lt',
+        'EF_TCO2_MWH': 'tCO2/MWh',
+        'EF_KG_CO2_KG': 'kgCO2/kg',
+        'EF_TCO2E_KG': 'tCO2e/kg',
+        'EF_KG_CO2E_KWH': 'kgCO2e/kWh',
+        'EF_KG_CO2E_M3': 'kgCO2e/m³',
+        'EF_KG_CO2_TON': 'kgCO2/ton',
+        'EF_KG_CO2_M3': 'kgCO2/m³',
+        'EF_KG_CO2E_ODA': 'kgCO2e/oda',
+    };
+    
+    if (unitMap[coefficientType] && !unitField.value) {
+        unitField.value = unitMap[coefficientType];
+    }
+});
+
+// Sayfa yüklendiğinde düzenleme modunda ise değerleri koru
+window.addEventListener('DOMContentLoaded', function() {
+    const scopeSelect = document.getElementById('id_scope_coefficient');
+    if (scopeSelect.value) {
+        scopeSelect.dispatchEvent(new Event('change'));
+    }
+});
+</script>
+{% endblock %}
