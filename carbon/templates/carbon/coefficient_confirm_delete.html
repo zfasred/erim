@@ -1,0 +1,66 @@
+{% extends 'base.html' %}
+
+{% block title %}Karbon Katsayısı Sil - Ekonaz Portal{% endblock %}
+
+{% block content %}
+<h1>Karbon Katsayısı Silme Onayı</h1>
+
+<div style="max-width: 600px; margin: 20px 0; padding: 20px; background-color: #fff3cd; border: 1px solid #ffc107; border-radius: 5px;">
+    <h3 style="color: #856404; margin-top: 0;">Dikkat!</h3>
+    <p>Aşağıdaki karbon katsayısını silmek üzeresiniz:</p>
+    
+    <table style="width: 100%; margin: 20px 0;">
+        <tr>
+            <td style="padding: 5px; font-weight: bold;">Kapsam:</td>
+            <td style="padding: 5px;">{{ coefficient.get_scope_display }}</td>
+        </tr>
+        <tr>
+            <td style="padding: 5px; font-weight: bold;">Alt Kapsam:</td>
+            <td style="padding: 5px;">{{ coefficient.get_subscope_display }}</td>
+        </tr>
+        <tr>
+            <td style="padding: 5px; font-weight: bold;">Katsayı Türü:</td>
+            <td style="padding: 5px;">{{ coefficient.get_coefficient_type_display }}</td>
+        </tr>
+        <tr>
+            <td style="padding: 5px; font-weight: bold;">İsim:</td>
+            <td style="padding: 5px;"><strong>{{ coefficient.name }}</strong></td>
+        </tr>
+        <tr>
+            <td style="padding: 5px; font-weight: bold;">Değer:</td>
+            <td style="padding: 5px;">{{ coefficient.value }} {{ coefficient.unit }}</td>
+        </tr>
+        <tr>
+            <td style="padding: 5px; font-weight: bold;">Geçerlilik:</td>
+            <td style="padding: 5px;">
+                {{ coefficient.valid_from|date:"d.m.Y" }}
+                {% if coefficient.valid_to %}
+                    - {{ coefficient.valid_to|date:"d.m.Y" }}
+                {% else %}
+                    - Süresiz
+                {% endif %}
+            </td>
+        </tr>
+        {% if coefficient.source %}
+        <tr>
+            <td style="padding: 5px; font-weight: bold;">Kaynak:</td>
+            <td style="padding: 5px;">{{ coefficient.source }}</td>
+        </tr>
+        {% endif %}
+    </table>
+    
+    <p style="color: #721c24; font-weight: bold;">
+        Bu işlem geri alınamaz. Emin misiniz?
+    </p>
+</div>
+
+<form method="post">
+    {% csrf_token %}
+    <button type="submit" style="padding: 10px 20px; background-color: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer;">
+        Evet, Sil
+    </button>
+    <a href="{% url 'carbon:coefficient-list' %}" style="padding: 10px 20px; background-color: #6c757d; color: white; text-decoration: none; border-radius: 4px; display: inline-block; margin-left: 10px;">
+        İptal
+    </a>
+</form>
+{% endblock %}

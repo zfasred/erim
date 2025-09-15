@@ -15,15 +15,13 @@ from io import BytesIO
 
 from .models import (
     CarbonCoefficient, CoefficientType, EmissionFactor, FuelType,
-    Scope1Data, Scope2Data, Scope3Data, Scope4Data,
-    InputCategory, InputData, Report,
-    FuelType, GWPValues, Scope1Excel, Scope2Excel, Scope4Excel, ExcelReport
+    InputCategory, InputData,
+    FuelType, GWPValues, ExcelReport
 )
 from .forms import (
     CarbonCoefficientForm, CoefficientTypeForm, EmissionFactorForm, FuelTypeForm,
-    Scope1DataForm, Scope2DataForm, Scope3DataForm, Scope4DataForm,
     UserFirmAccessForm, BulkUploadForm, ReportGenerateForm,
-    InputCategoryForm, InputDataForm, ReportForm
+    InputCategoryForm, ReportForm
 )
 from core.models import UserFirm, Firm, User
 
@@ -65,43 +63,6 @@ def api_get_options(request, option_type):
     }
     
     return JsonResponse(options.get(option_type, []), safe=False)
-
-@login_required
-@csrf_exempt
-def api_dynamic_input(request):
-    """Dinamik veri girişi kaydet"""
-    
-    if request.method == 'POST':
-        data = json.loads(request.body)
-        
-        # Alt kapsam bul veya oluştur
-        subscope, _ = SubScope.objects.get_or_create(
-            scope=data['scope'],
-            code=data['subscope'],
-            defaults={'name': f"Alt Kapsam {data['subscope']}"}
-        )
-        
-        # CO2 hesaplama
-        co2e_total = calculate_co2e(data['scope'], data['subscope'], data['data'])
-        
-        # Kaydet
-        input_obj = DynamicCarbonInput.objects.create(
-            firm_id=data['firm'],
-            datetime=data['datetime'],
-            scope=data['scope'],
-            subscope=subscope,
-            data=data['data'],
-            co2e_total=co2e_total,
-            created_by=request.user.user if hasattr(request.user, 'user') else request.user
-        )
-        
-        return JsonResponse({
-            'success': True,
-            'id': input_obj.id,
-            'co2e_total': float(co2e_total)
-        })
-    
-    return JsonResponse({'success': False, 'message': 'Invalid method'})
 
 def calculate_co2e(scope, subscope, data):
     """CO2 eşdeğeri hesaplama"""
@@ -357,7 +318,6 @@ def api_dynamic_input(request, input_id=None):
             return JsonResponse({'success': False, 'message': 'Kayıt bulunamadı'})
     
     elif request.method == 'POST':
-        # Mevcut POST kodu...
         data = json.loads(request.body)
         
         # Alt kapsam bul veya oluştur
@@ -388,7 +348,6 @@ def api_dynamic_input(request, input_id=None):
         })
     
     return JsonResponse({'success': False, 'message': 'Invalid method'})
-
 
 # Dashboard View
 @login_required
@@ -596,93 +555,6 @@ def dashboard_view(request):
     
     return render(request, 'carbon/dashboard.html', context)
 
-# KAPSAM 1 VIEW'LARI
-@login_required
-@permission_required('carbon.add_scope1data', raise_exception=True)
-def scope1_create_view(request):
-    """Kapsam 1 veri girişi"""
-    # Kullanıcının firmasını al
-    user_firms = Firm.objects.filter(user_associations__user=request.user.user if hasattr(request.user, 'user') else request.user)
-    selected_firm = user_firms.first()
-    
-    if not selected_firm:
-        messages.error(request, "Firma bulunamadı.")
-        return redirect('carbon:dashboard')
-    
-    if request.method == 'POST':
-        form = Scope1DataForm(request.POST, firm=selected_firm)
-        if form.is_valid():
-            scope1_data = form.save(commit=False)
-            scope1_data.created_by = request.user.user if hasattr(request.user, 'user') else request.user
-            scope1_data.save()
-            messages.success(request, "Kapsam 1 verisi başarıyla kaydedildi.")
-            return redirect('carbon:dashboard')
-    else:
-        form = Scope1DataForm(firm=selected_firm)
-    
-    return render(request, 'carbon/scope1_form.html', {
-        'form': form,
-        'firm': selected_firm,
-        'title': 'Kapsam 1 - Doğrudan Emisyon Veri Girişi'
-    })
-
-@login_required
-@permission_required('carbon.change_scope1data', raise_exception=True)
-def scope1_update_view(request, pk):
-    """Kapsam 1 veri güncelleme"""
-    scope1_data = get_object_or_404(Scope1Data, pk=pk)
-    
-    # Yetki kontrolü
-    user_firms = Firm.objects.filter(user_associations__user=request.user.user if hasattr(request.user, 'user') else request.user)
-    if scope1_data.firm not in user_firms:
-        raise PermissionDenied
-    
-    if request.method == 'POST':
-        form = Scope1DataForm(request.POST, instance=scope1_data, firm=scope1_data.firm)
-        if form.is_valid():
-            form.save()
-            messages.success(request, "Kapsam 1 verisi güncellendi.")
-            return redirect('carbon:dashboard')
-    else:
-        form = Scope1DataForm(instance=scope1_data, firm=scope1_data.firm)
-    
-    return render(request, 'carbon/scope1_form.html', {
-        'form': form,
-        'firm': scope1_data.firm,
-        'title': 'Kapsam 1 Veri Güncelleme'
-    })
-
-# KAPSAM 2 VIEW'LARI
-@login_required
-@permission_required('carbon.add_scope2data', raise_exception=True)
-def scope2_create_view(request):
-    """Kapsam 2 veri girişi"""
-    user_firms = Firm.objects.filter(user_associations__user=request.user.user if hasattr(request.user, 'user') else request.user)
-    selected_firm = user_firms.first()
-    
-    if not selected_firm:
-        messages.error(request, "Firma bulunamadı.")
-        return redirect('carbon:dashboard')
-    
-    if request.method == 'POST':
-        form = Scope2DataForm(request.POST, firm=selected_firm)
-        if form.is_valid():
-            scope2_data = form.save(commit=False)
-            scope2_data.created_by = request.user.user if hasattr(request.user, 'user') else request.user
-            scope2_data.save()
-            messages.success(request, "Kapsam 2 verisi başarıyla kaydedildi.")
-            return redirect('carbon:dashboard')
-    else:
-        form = Scope2DataForm(firm=selected_firm)
-    
-    return render(request, 'carbon/scope2_form.html', {
-        'form': form,
-        'firm': selected_firm,
-        'title': 'Kapsam 2 - Elektrik Tüketimi Veri Girişi'
-    })
-
-# Benzer şekilde Kapsam 3 ve 4 için view'lar...
-
 # TOPLU VERİ YÜKLEME
 @login_required
 @permission_required('carbon.add_inputdata', raise_exception=True)
@@ -710,29 +582,6 @@ def bulk_upload_view(request):
         form = BulkUploadForm()
     
     return render(request, 'carbon/bulk_upload.html', {'form': form})
-
-def process_scope1_excel(df, user):
-    """Scope 1 Excel verilerini işle"""
-    # Excel'deki sütun isimlerini kontrol et ve veritabanına kaydet
-    for index, row in df.iterrows():
-        try:
-            fuel_type = FuelType.objects.get(name=row['Yakıt Türü'])
-            firm = Firm.objects.get(name=row['Firma'])
-            
-            Scope1Data.objects.create(
-                firm=firm,
-                combustion_type='stationary',
-                location=row['Lokasyon'],
-                fuel_type=fuel_type,
-                consumption_value=row['Tüketim'],
-                consumption_unit=row['Birim'],
-                period_year=row['Yıl'],
-                period_month=row['Ay'],
-                created_by=user.user if hasattr(user, 'user') else user
-            )
-        except Exception as e:
-            # Hataları logla
-            print(f"Satır {index} işlenirken hata: {e}")
 
 @login_required
 @permission_required('carbon.view_management_carbon', raise_exception=True)
@@ -898,341 +747,6 @@ def fueltype_delete_view(request, pk):
         'fuel_type': fuel_type
     })
 
-# KAPSAM 1 LİSTE VIEW'I
-@login_required
-@permission_required('carbon.view_scope1data', raise_exception=True)
-def scope1_list_view(request):
-    """Kapsam 1 verilerini listele"""
-    user_firms = Firm.objects.filter(
-        user_associations__user=request.user.user if hasattr(request.user, 'user') else request.user
-    )
-    
-    selected_firm_id = request.GET.get('firm_id')
-    if selected_firm_id:
-        selected_firm = get_object_or_404(user_firms, pk=selected_firm_id)
-    else:
-        selected_firm = user_firms.first()
-    
-    if selected_firm:
-        scope1_data = Scope1Data.objects.filter(firm=selected_firm).order_by('-period_year', '-period_month')
-    else:
-        scope1_data = Scope1Data.objects.none()
-    
-    return render(request, 'carbon/scope1_list.html', {
-        'scope1_data': scope1_data,
-        'selected_firm': selected_firm,
-        'user_firms': user_firms
-    })
-
-@login_required
-@permission_required('carbon.delete_scope1data', raise_exception=True)
-def scope1_delete_view(request, pk):
-    """Kapsam 1 veri silme"""
-    scope1_data = get_object_or_404(Scope1Data, pk=pk)
-    
-    # Yetki kontrolü
-    user_firms = Firm.objects.filter(
-        user_associations__user=request.user.user if hasattr(request.user, 'user') else request.user
-    )
-    if scope1_data.firm not in user_firms:
-        raise PermissionDenied
-    
-    if request.method == 'POST':
-        scope1_data.delete()
-        messages.success(request, "Kapsam 1 verisi silindi.")
-        return redirect('carbon:scope1-list')
-    
-    return render(request, 'carbon/scope1_confirm_delete.html', {
-        'scope1_data': scope1_data
-    })
-
-# KAPSAM 2 VIEW'LARI
-@login_required
-@permission_required('carbon.view_scope2data', raise_exception=True)
-def scope2_list_view(request):
-    """Kapsam 2 verilerini listele"""
-    user_firms = Firm.objects.filter(
-        user_associations__user=request.user.user if hasattr(request.user, 'user') else request.user
-    )
-    
-    selected_firm_id = request.GET.get('firm_id')
-    if selected_firm_id:
-        selected_firm = get_object_or_404(user_firms, pk=selected_firm_id)
-    else:
-        selected_firm = user_firms.first()
-    
-    if selected_firm:
-        scope2_data = Scope2Data.objects.filter(firm=selected_firm).order_by('-period_year', '-period_month')
-    else:
-        scope2_data = Scope2Data.objects.none()
-    
-    return render(request, 'carbon/scope2_list.html', {
-        'scope2_data': scope2_data,
-        'selected_firm': selected_firm,
-        'user_firms': user_firms
-    })
-
-@login_required
-@permission_required('carbon.change_scope2data', raise_exception=True)
-def scope2_update_view(request, pk):
-    """Kapsam 2 veri güncelleme"""
-    scope2_data = get_object_or_404(Scope2Data, pk=pk)
-    
-    # Yetki kontrolü
-    user_firms = Firm.objects.filter(
-        user_associations__user=request.user.user if hasattr(request.user, 'user') else request.user
-    )
-    if scope2_data.firm not in user_firms:
-        raise PermissionDenied
-    
-    if request.method == 'POST':
-        form = Scope2DataForm(request.POST, instance=scope2_data, firm=scope2_data.firm)
-        if form.is_valid():
-            form.save()
-            messages.success(request, "Kapsam 2 verisi güncellendi.")
-            return redirect('carbon:scope2-list')
-    else:
-        form = Scope2DataForm(instance=scope2_data, firm=scope2_data.firm)
-    
-    return render(request, 'carbon/scope2_form.html', {
-        'form': form,
-        'firm': scope2_data.firm,
-        'title': 'Kapsam 2 Veri Güncelleme'
-    })
-
-@login_required
-@permission_required('carbon.delete_scope2data', raise_exception=True)
-def scope2_delete_view(request, pk):
-    """Kapsam 2 veri silme"""
-    scope2_data = get_object_or_404(Scope2Data, pk=pk)
-    
-    # Yetki kontrolü
-    user_firms = Firm.objects.filter(
-        user_associations__user=request.user.user if hasattr(request.user, 'user') else request.user
-    )
-    if scope2_data.firm not in user_firms:
-        raise PermissionDenied
-    
-    if request.method == 'POST':
-        scope2_data.delete()
-        messages.success(request, "Kapsam 2 verisi silindi.")
-        return redirect('carbon:scope2-list')
-    
-    return render(request, 'carbon/scope2_confirm_delete.html', {
-        'scope2_data': scope2_data
-    })
-
-# KAPSAM 3 VIEW'LARI
-@login_required
-@permission_required('carbon.view_scope3data', raise_exception=True)
-def scope3_list_view(request):
-    """Kapsam 3 verilerini listele"""
-    user_firms = Firm.objects.filter(
-        user_associations__user=request.user.user if hasattr(request.user, 'user') else request.user
-    )
-    
-    selected_firm_id = request.GET.get('firm_id')
-    if selected_firm_id:
-        selected_firm = get_object_or_404(user_firms, pk=selected_firm_id)
-    else:
-        selected_firm = user_firms.first()
-    
-    if selected_firm:
-        scope3_data = Scope3Data.objects.filter(firm=selected_firm).order_by('-period_year', '-period_month')
-    else:
-        scope3_data = Scope3Data.objects.none()
-    
-    return render(request, 'carbon/scope3_list.html', {
-        'scope3_data': scope3_data,
-        'selected_firm': selected_firm,
-        'user_firms': user_firms
-    })
-
-@login_required
-@permission_required('carbon.add_scope3data', raise_exception=True)
-def scope3_create_view(request):
-    """Kapsam 3 veri girişi"""
-    user_firms = Firm.objects.filter(
-        user_associations__user=request.user.user if hasattr(request.user, 'user') else request.user
-    )
-    selected_firm = user_firms.first()
-    
-    if not selected_firm:
-        messages.error(request, "Firma bulunamadı.")
-        return redirect('carbon:dashboard')
-    
-    if request.method == 'POST':
-        form = Scope3DataForm(request.POST, firm=selected_firm)
-        if form.is_valid():
-            scope3_data = form.save(commit=False)
-            scope3_data.created_by = request.user.user if hasattr(request.user, 'user') else request.user
-            scope3_data.save()
-            messages.success(request, "Kapsam 3 verisi başarıyla kaydedildi.")
-            return redirect('carbon:scope3-list')
-    else:
-        form = Scope3DataForm(firm=selected_firm)
-    
-    return render(request, 'carbon/scope3_form.html', {
-        'form': form,
-        'firm': selected_firm,
-        'title': 'Kapsam 3 - Ulaşım Emisyonu Veri Girişi'
-    })
-
-@login_required
-@permission_required('carbon.change_scope3data', raise_exception=True)
-def scope3_update_view(request, pk):
-    """Kapsam 3 veri güncelleme"""
-    scope3_data = get_object_or_404(Scope3Data, pk=pk)
-    
-    # Yetki kontrolü
-    user_firms = Firm.objects.filter(
-        user_associations__user=request.user.user if hasattr(request.user, 'user') else request.user
-    )
-    if scope3_data.firm not in user_firms:
-        raise PermissionDenied
-    
-    if request.method == 'POST':
-        form = Scope3DataForm(request.POST, instance=scope3_data, firm=scope3_data.firm)
-        if form.is_valid():
-            form.save()
-            messages.success(request, "Kapsam 3 verisi güncellendi.")
-            return redirect('carbon:scope3-list')
-    else:
-        form = Scope3DataForm(instance=scope3_data, firm=scope3_data.firm)
-    
-    return render(request, 'carbon/scope3_form.html', {
-        'form': form,
-        'firm': scope3_data.firm,
-        'title': 'Kapsam 3 Veri Güncelleme'
-    })
-
-@login_required
-@permission_required('carbon.delete_scope3data', raise_exception=True)
-def scope3_delete_view(request, pk):
-    """Kapsam 3 veri silme"""
-    scope3_data = get_object_or_404(Scope3Data, pk=pk)
-    
-    # Yetki kontrolü
-    user_firms = Firm.objects.filter(
-        user_associations__user=request.user.user if hasattr(request.user, 'user') else request.user
-    )
-    if scope3_data.firm not in user_firms:
-        raise PermissionDenied
-    
-    if request.method == 'POST':
-        scope3_data.delete()
-        messages.success(request, "Kapsam 3 verisi silindi.")
-        return redirect('carbon:scope3-list')
-    
-    return render(request, 'carbon/scope3_confirm_delete.html', {
-        'scope3_data': scope3_data
-    })
-
-# KAPSAM 4 VIEW'LARI
-@login_required
-@permission_required('carbon.view_scope4data', raise_exception=True)
-def scope4_list_view(request):
-    """Kapsam 4 verilerini listele"""
-    user_firms = Firm.objects.filter(
-        user_associations__user=request.user.user if hasattr(request.user, 'user') else request.user
-    )
-    
-    selected_firm_id = request.GET.get('firm_id')
-    if selected_firm_id:
-        selected_firm = get_object_or_404(user_firms, pk=selected_firm_id)
-    else:
-        selected_firm = user_firms.first()
-    
-    if selected_firm:
-        scope4_data = Scope4Data.objects.filter(firm=selected_firm).order_by('-period_year', '-period_month')
-    else:
-        scope4_data = Scope4Data.objects.none()
-    
-    return render(request, 'carbon/scope4_list.html', {
-        'scope4_data': scope4_data,
-        'selected_firm': selected_firm,
-        'user_firms': user_firms
-    })
-
-@login_required
-@permission_required('carbon.add_scope4data', raise_exception=True)
-def scope4_create_view(request):
-    """Kapsam 4 veri girişi"""
-    user_firms = Firm.objects.filter(
-        user_associations__user=request.user.user if hasattr(request.user, 'user') else request.user
-    )
-    selected_firm = user_firms.first()
-    
-    if not selected_firm:
-        messages.error(request, "Firma bulunamadı.")
-        return redirect('carbon:dashboard')
-    
-    if request.method == 'POST':
-        form = Scope4DataForm(request.POST, firm=selected_firm)
-        if form.is_valid():
-            scope4_data = form.save(commit=False)
-            scope4_data.created_by = request.user.user if hasattr(request.user, 'user') else request.user
-            scope4_data.save()
-            messages.success(request, "Kapsam 4 verisi başarıyla kaydedildi.")
-            return redirect('carbon:scope4-list')
-    else:
-        form = Scope4DataForm(firm=selected_firm)
-    
-    return render(request, 'carbon/scope4_form.html', {
-        'form': form,
-        'firm': selected_firm,
-        'title': 'Kapsam 4 - Satın Alınan Ürün Veri Girişi'
-    })
-
-@login_required
-@permission_required('carbon.change_scope4data', raise_exception=True)
-def scope4_update_view(request, pk):
-    """Kapsam 4 veri güncelleme"""
-    scope4_data = get_object_or_404(Scope4Data, pk=pk)
-    
-    # Yetki kontrolü
-    user_firms = Firm.objects.filter(
-        user_associations__user=request.user.user if hasattr(request.user, 'user') else request.user
-    )
-    if scope4_data.firm not in user_firms:
-        raise PermissionDenied
-    
-    if request.method == 'POST':
-        form = Scope4DataForm(request.POST, instance=scope4_data, firm=scope4_data.firm)
-        if form.is_valid():
-            form.save()
-            messages.success(request, "Kapsam 4 verisi güncellendi.")
-            return redirect('carbon:scope4-list')
-    else:
-        form = Scope4DataForm(instance=scope4_data, firm=scope4_data.firm)
-    
-    return render(request, 'carbon/scope4_form.html', {
-        'form': form,
-        'firm': scope4_data.firm,
-        'title': 'Kapsam 4 Veri Güncelleme'
-    })
-
-@login_required
-@permission_required('carbon.delete_scope4data', raise_exception=True)
-def scope4_delete_view(request, pk):
-    """Kapsam 4 veri silme"""
-    scope4_data = get_object_or_404(Scope4Data, pk=pk)
-    
-    # Yetki kontrolü
-    user_firms = Firm.objects.filter(
-        user_associations__user=request.user.user if hasattr(request.user, 'user') else request.user
-    )
-    if scope4_data.firm not in user_firms:
-        raise PermissionDenied
-    
-    if request.method == 'POST':
-        scope4_data.delete()
-        messages.success(request, "Kapsam 4 verisi silindi.")
-        return redirect('carbon:scope4-list')
-    
-    return render(request, 'carbon/scope4_confirm_delete.html', {
-        'scope4_data': scope4_data
-    })
 
 @login_required
 @permission_required('carbon.view_report_carbon', raise_exception=True)
@@ -1535,53 +1049,6 @@ def api_chart_data(request):
         'datasets': []
     })
 
-@login_required
-@permission_required('carbon.add_inputdata', raise_exception=True)
-def inputdata_create_view(request):
-    if request.method == 'POST':
-        form = InputDataForm(request.POST)
-        if form.is_valid():
-            input_data = form.save(commit=False)
-            if hasattr(request.user, 'user'):
-                # userfirm yerine user_associations kullanın:
-                firm = Firm.objects.filter(user_associations__user=request.user.user).first()
-                if not firm:
-                    raise PermissionDenied("No associated firm found.")
-                input_data.firm = firm
-                input_data.created_by = request.user.user
-            input_data.save()
-            return redirect('carbon:input-list')
-    else:
-        form = InputDataForm()
-    return render(request, 'carbon/inputdata_form.html', {'form': form})
-
-@login_required
-@permission_required('carbon.change_inputdata', raise_exception=True)
-def inputdata_update_view(request, pk):
-    """Eski input data update view"""
-    input_data = get_object_or_404(InputData, pk=pk)
-    if hasattr(request.user, 'user') and input_data.firm not in Firm.objects.filter(user_associations__user=request.user.user):
-        raise PermissionDenied
-    if request.method == 'POST':
-        form = InputDataForm(request.POST, instance=input_data)
-        if form.is_valid():
-            form.save()
-            return redirect('carbon:input-list')
-    else:
-        form = InputDataForm(instance=input_data)
-    return render(request, 'carbon/inputdata_form.html', {'form': form})
-
-@login_required
-@permission_required('carbon.delete_inputdata', raise_exception=True)
-def inputdata_delete_view(request, pk):
-    """Eski input data delete view"""
-    input_data = get_object_or_404(InputData, pk=pk)
-    if hasattr(request.user, 'user') and input_data.firm not in Firm.objects.filter(user_associations__user=request.user.user):
-        raise PermissionDenied
-    if request.method == 'POST':
-        input_data.delete()
-        return redirect('carbon:input-list')
-    return render(request, 'carbon/inputdata_confirm_delete.html', {'input_data': input_data})
 
 @login_required
 def dashboard_view(request):
@@ -1600,41 +1067,6 @@ def bulk_upload_view(request):
     messages.info(request, "Bu özellik henüz hazır değil.")
     return redirect('carbon:management-list')
 
-# Diğer scope view'ları için boş fonksiyonlar
-@login_required
-def scope1_list_view(request):
-    return redirect('carbon:input-list')
-
-@login_required
-def scope1_create_view(request):
-    return redirect('carbon:input-list')
-
-@login_required
-def scope1_update_view(request, pk):
-    return redirect('carbon:input-list')
-
-@login_required
-def scope1_delete_view(request, pk):
-    return redirect('carbon:input-list')
-
-# Benzer şekilde scope2, scope3, scope4 için...
-@login_required
-def scope2_list_view(request):
-    return redirect('carbon:input-list')
-
-@login_required
-def scope2_create_view(request):
-    return redirect('carbon:input-list')
-
-@login_required
-def scope2_update_view(request, pk):
-    return redirect('carbon:input-list')
-
-@login_required
-def scope2_delete_view(request, pk):
-    return redirect('carbon:input-list')
-
-# Ve diğerleri...
 @login_required
 def fueltype_create_view(request):
     return redirect('carbon:management-list')
@@ -1670,41 +1102,10 @@ def report_download_view(request, pk):
 
 
 @login_required
-@permission_required('carbon.view_inputdata', raise_exception=True)
+@permission_required('carbon.view_input_carbon', raise_exception=True)
 def input_list_view(request):
-    """Input listesi görüntüleme"""
-    
-    # Süper kullanıcı kontrolü
-    if request.user.is_superuser:
-        # Süper kullanıcı tüm firmaları görebilir
-        user_firms = Firm.objects.all()
-    else:
-        # Normal kullanıcılar sadece ilişkili firmalarını görür
-        if hasattr(request.user, 'user'):
-            user_profile = request.user.user
-            user_firms = Firm.objects.filter(user_associations__user=user_profile)
-        else:
-            user_firms = Firm.objects.filter(user_associations__user=request.user)
-    
-    # Firma seçimi
-    selected_firm_id = request.GET.get('firm_pk')
-    if selected_firm_id:
-        selected_firm = get_object_or_404(Firm, pk=selected_firm_id)
-    else:
-        selected_firm = user_firms.first()
-    
-    # Veri listesi
-    if selected_firm:
-        inputs = InputData.objects.filter(firm=selected_firm)
-    else:
-        inputs = InputData.objects.none()
-    
-    context = {
-        'inputs': inputs,
-        'user_firms': user_firms,
-        'selected_firm': selected_firm
-    }
-    return render(request, 'carbon/input_list.html', context)
+    """Karbon girdi sayfası - yeni dinamik sisteme yönlendir"""
+    return redirect('carbon:dynamic-input')
 
 
 @login_required
@@ -1761,6 +1162,20 @@ def report_list_view(request):
     
     return render(request, 'carbon/report_list.html', context)
 
+
+@login_required
+@permission_required('carbon.view_report_carbon', raise_exception=True)
+def report_list_view(request):
+    """Geçici rapor sayfası - ileride geliştirilecek"""
+    return HttpResponse("""
+        <html>
+        <body style="padding: 50px; font-family: Arial;">
+            <h1>Karbon Rapor Modülü</h1>
+            <p>Bu modül henüz geliştirme aşamasındadır.</p>
+            <a href="/portal/">Portal'a Dön</a>
+        </body>
+        </html>
+    """)
 
 @login_required
 def excel_report_view(request):

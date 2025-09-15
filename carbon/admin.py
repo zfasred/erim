@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import CoefficientType, EmissionFactor, InputCategory, InputData, Report, SubScope, DynamicCarbonInput
+from .models import CoefficientType, EmissionFactor, InputCategory, InputData, SubScope, DynamicCarbonInput
 
 
 @admin.register(SubScope)
@@ -35,7 +35,3 @@ class InputDataAdmin(admin.ModelAdmin):
     list_display = ('firm', 'category', 'value', 'period_start')
     list_filter = ('firm', 'category')
 
-@admin.register(Report)
-class ReportAdmin(admin.ModelAdmin):
-    list_display = ('firm', 'report_date', 'total_co2e')
-    list_filter = ('firm', 'report_date')

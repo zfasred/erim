@@ -1,29 +1,27 @@
 {% extends 'base.html' %}
 
-{% block title %}Karbon Yönetim - Ekonaz Portal{% endblock %}
+{% block title %}Karbon Katsayıları - Ekonaz Portal{% endblock %}
 
 {% block content %}
-<h1>Karbon Yönetim</h1>
+<h1>Karbon Katsayıları Yönetimi</h1>
 
-<!-- Filtreleme ve İşlem Alanı -->
-<div style="margin: 20px 0; padding: 20px; background: #f8f9fa; border-radius: 8px;">
-    <h3 style="margin-top: 0;">Katsayı Filtreleme</h3>
-    <form method="get" action="{% url 'carbon:management-list' %}">
-        <div style="display: flex; gap: 15px; align-items: flex-end; flex-wrap: wrap;">
+<!-- Filtreleme Formu -->
+<div style="background: #f5f5f5; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
+    <form method="get" action="{% url 'carbon:coefficient-list' %}">
+        <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end;">
             <div style="flex: 1; min-width: 150px;">
-                <label for="kapsam-select">Kapsam:</label>
-                <select name="scope" id="kapsam-select" style="width: 100%; padding: 8px;">
+                <label for="filter-scope">Kapsam:</label>
+                <select name="scope" id="filter-scope" style="width: 100%; padding: 8px;">
                     <option value="">-- Tümü --</option>
-                    <option value="1" {% if selected_scope == '1' %}selected{% endif %}>KAPSAM 1</option>
-                    <option value="2" {% if selected_scope == '2' %}selected{% endif %}>KAPSAM 2</option>
-                    <option value="3" {% if selected_scope == '3' %}selected{% endif %}>KAPSAM 3</option>
-                    <option value="4" {% if selected_scope == '4' %}selected{% endif %}>KAPSAM 4</option>
+                    {% for code, label in scope_choices %}
+                        <option value="{{ code }}" {% if selected_scope == code %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
                 </select>
             </div>
             
             <div style="flex: 1; min-width: 150px;">
-                <label for="alt-baslik-select">Alt Kapsam:</label>
-                <select name="subscope" id="alt-baslik-select" style="width: 100%; padding: 8px;">
+                <label for="filter-subscope">Alt Kapsam:</label>
+                <select name="subscope" id="filter-subscope" style="width: 100%; padding: 8px;">
                     <option value="">-- Tümü --</option>
                     {% for code, label in subscope_choices %}
                         <option value="{{ code }}" {% if selected_subscope == code %}selected{% endif %}>{{ label }}</option>
@@ -31,21 +29,27 @@
                 </select>
             </div>
             
-            <div style="flex: 1; min-width: 150px;">
-                <label for="baslangic-tarih">Başlangıç:</label>
-                <input type="date" name="valid_from" id="baslangic-tarih" value="{{ selected_valid_from }}" style="width: 100%; padding: 8px;">
+            <div style="flex: 1; min-width: 200px;">
+                <label for="filter-coefficient-type">Katsayı Türü:</label>
+                <select name="coefficient_type" id="filter-coefficient-type" style="width: 100%; padding: 8px;">
+                    <option value="">-- Tümü --</option>
+                    {% for code, label in coefficient_type_choices %}
+                        <option value="{{ code }}" {% if selected_coefficient_type == code %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
             </div>
             
             <div style="flex: 1; min-width: 150px;">
-                <label for="bitis-tarih">Bitiş:</label>
-                <input type="date" name="valid_to" id="bitis-tarih" value="{{ selected_valid_to }}" style="width: 100%; padding: 8px;">
+                <label for="filter-name">İsim:</label>
+                <input type="text" name="name" id="filter-name" value="{{ name_search }}" 
+                       placeholder="Ara..." style="width: 100%; padding: 8px;">
             </div>
             
             <div style="flex: 0;">
                 <button type="submit" style="padding: 8px 20px; background-color: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;">
                     Filtrele
                 </button>
-                <a href="{% url 'carbon:management-list' %}" style="padding: 8px 20px; background-color: #6c757d; color: white; text-decoration: none; border-radius: 4px; display: inline-block;">
+                <a href="{% url 'carbon:coefficient-list' %}" style="padding: 8px 20px; background-color: #6c757d; color: white; text-decoration: none; border-radius: 4px; display: inline-block;">
                     Temizle
                 </a>
             </div>
@@ -55,13 +59,12 @@
 
 <!-- Yeni Katsayı Ekleme Butonu -->
 <div style="margin-bottom: 20px;">
-    <a href="{% url 'carbon:coefficient-create' %}" style="padding: 10px 20px; background-color: #28a745; color: white; text-decoration: none; border-radius: 4px; display: inline-block; font-weight: bold;">
+    <a href="{% url 'carbon:coefficient-create' %}" style="padding: 10px 20px; background-color: #28a745; color: white; text-decoration: none; border-radius: 4px; display: inline-block;">
         + Yeni Katsayı Ekle
     </a>
 </div>
 
-<!-- Katsayı Listesi -->
-<h2>Karbon Katsayıları</h2>
+<!-- Katsayı Listesi Tablosu -->
 <div style="overflow-x: auto;">
     <table style="width: 100%; border-collapse: collapse;">
         <thead>
@@ -80,15 +83,15 @@
         <tbody>
             {% for coefficient in coefficients %}
             <tr>
-                <td style="border: 1px solid #dee2e6; padding: 10px;">KAPSAM {{ coefficient.scope }}</td>
+                <td style="border: 1px solid #dee2e6; padding: 10px;">{{ coefficient.get_scope_display }}</td>
                 <td style="border: 1px solid #dee2e6; padding: 10px;">{{ coefficient.get_subscope_display }}</td>
-                <td style="border: 1px solid #dee2e6; padding: 10px; font-size: 0.9em;">{{ coefficient.get_coefficient_type_display }}</td>
+                <td style="border: 1px solid #dee2e6; padding: 10px;">{{ coefficient.get_coefficient_type_display }}</td>
                 <td style="border: 1px solid #dee2e6; padding: 10px;">
                     <strong>{{ coefficient.name }}</strong>
                 </td>
                 <td style="border: 1px solid #dee2e6; padding: 10px; text-align: right;">{{ coefficient.value }}</td>
                 <td style="border: 1px solid #dee2e6; padding: 10px;">{{ coefficient.unit }}</td>
-                <td style="border: 1px solid #dee2e6; padding: 10px; text-align: center; font-size: 0.9em;">
+                <td style="border: 1px solid #dee2e6; padding: 10px; text-align: center;">
                     {{ coefficient.valid_from|date:"d.m.Y" }}
                     {% if coefficient.valid_to %}
                         - {{ coefficient.valid_to|date:"d.m.Y" }}
@@ -112,7 +115,7 @@
             {% empty %}
             <tr>
                 <td colspan="9" style="border: 1px solid #dee2e6; padding: 20px; text-align: center; color: #6c757d;">
-                    Filtreleme kriterlerine uygun katsayı bulunamadı. Yeni katsayı eklemek için yukarıdaki butonu kullanın.
+                    Henüz katsayı tanımlanmamış. Yeni katsayı eklemek için yukarıdaki butonu kullanın.
                 </td>
             </tr>
             {% endfor %}
@@ -120,84 +123,42 @@
     </table>
 </div>
 
-<!-- Özet Bilgi -->
+<!-- Sayfa altı bilgilendirme -->
 <div style="margin-top: 20px; padding: 15px; background-color: #e9ecef; border-radius: 5px;">
     <p style="margin: 0; color: #6c757d;">
         <strong>Toplam {{ coefficients|length }} katsayı listeleniyor.</strong>
-        {% if selected_scope or selected_subscope or selected_valid_from or selected_valid_to %}
+        {% if selected_scope or selected_subscope or selected_coefficient_type or name_search %}
             (Filtre uygulandı)
         {% endif %}
     </p>
 </div>
 
-{% if user_firm_form %}
-<hr style="margin: 40px 0;">
-<h2>Kullanıcı-Firma İlişkilendirme</h2>
-<form method="post">
-    {% csrf_token %}
-    {{ user_firm_form.as_p }}
-    <button type="submit">İlişkilendir</button>
-</form>
-{% endif %}
-
 <script>
-// Alt kapsam verilerini tanımla
-const altBasliklar = {
-    '1': [
-        {value: '1.1', text: 'Kapsam 1.1'},
-        {value: '1.2', text: 'Kapsam 1.2'},
-        {value: '1.3', text: 'Kapsam 1.3'},
-        {value: '1.4', text: 'Kapsam 1.4'},
-        {value: '1.5', text: 'Kapsam 1.5'}
-    ],
-    '2': [
-        {value: '2.1', text: 'Kapsam 2.1'}
-    ],
-    '3': [
-        {value: '3.1', text: 'Kapsam 3.1'},
-        {value: '3.2', text: 'Kapsam 3.2'},
-        {value: '3.3', text: 'Kapsam 3.3'},
-        {value: '3.4', text: 'Kapsam 3.4'},
-        {value: '3.5', text: 'Kapsam 3.5'}
-    ],
-    '4': [
-        {value: '4.1', text: 'Kapsam 4.1'},
-        {value: '4.2', text: 'Kapsam 4.2'},
-        {value: '4.3', text: 'Kapsam 4.3'}
-    ]
-};
-
-// Kapsam değiştiğinde alt kapsamları güncelle
-document.getElementById('kapsam-select').addEventListener('change', function() {
-    const altBaslikSelect = document.getElementById('alt-baslik-select');
-    const selectedKapsam = this.value;
+// Kapsam değiştiğinde alt kapsamları filtrele
+document.getElementById('filter-scope').addEventListener('change', function() {
+    const scope = this.value;
+    const subscopeSelect = document.getElementById('filter-subscope');
+    const allOptions = subscopeSelect.querySelectorAll('option');
     
-    // Mevcut seçimi sakla
-    const currentValue = altBaslikSelect.value;
-    
-    // Önce tüm seçenekleri göster
-    const allOptions = altBaslikSelect.querySelectorAll('option');
     allOptions.forEach(option => {
-        if (option.value === '') {
-            option.style.display = '';
-        } else if (!selectedKapsam || option.value.startsWith(selectedKapsam + '.')) {
+        if (option.value === '' || !scope || option.value.startsWith(scope + '.')) {
             option.style.display = '';
         } else {
             option.style.display = 'none';
         }
     });
     
-    // Seçili değer uygun değilse sıfırla
-    if (currentValue && selectedKapsam && !currentValue.startsWith(selectedKapsam + '.')) {
-        altBaslikSelect.value = '';
+    // Seçili alt kapsam uygun değilse sıfırla
+    if (subscopeSelect.value && !subscopeSelect.value.startsWith(scope + '.')) {
+        subscopeSelect.value = '';
     }
 });
 
 // Sayfa yüklendiğinde filtreyi uygula
 window.addEventListener('DOMContentLoaded', function() {
-    const kapsamSelect = document.getElementById('kapsam-select');
-    if (kapsamSelect.value) {
-        kapsamSelect.dispatchEvent(new Event('change'));
+    const scopeSelect = document.getElementById('filter-scope');
+    if (scopeSelect.value) {
+        scopeSelect.dispatchEvent(new Event('change'));
     }
 });
 </script>
