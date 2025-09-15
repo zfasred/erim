@@ -3,8 +3,11 @@ from django import forms
 from django.core.exceptions import ValidationError
 from datetime import date
 from .models import (
+    GWPValues,
+    DynamicCarbonInput, 
+    SubScope,
+    ExcelReport,
     CarbonCoefficient, CoefficientType, EmissionFactor, FuelType,
-    Scope1Data, Scope2Data, Scope3Data, Scope4Data,
     InputCategory, InputData, Report
 )
 from core.models import User as CoreUser, Firm
