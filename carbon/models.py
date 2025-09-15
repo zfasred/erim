@@ -46,7 +46,6 @@ class CarbonCoefficient(models.Model):
         ('YOGUNLUK_KG_LT', 'Yoğunluk (kg/lt)'),
         ('EF_TCO2_MWH', 'EF tCO2 (tCO2/MWh)'),
         ('EF_KG_CO2_KG', 'EF (kgCO2/kg)'),
-        ('EF_TCO2E_KG', 'EF (tCO2e/kg)'),
         ('EF_KG_CO2E_KWH', 'EF (kgCO2e/kWh)'),
         ('EF_KG_CO2E_M3', 'EF (kgCO2e/m³)'),
         ('EF_KG_CO2_TON', 'EF (kgCO2/ton)'),
