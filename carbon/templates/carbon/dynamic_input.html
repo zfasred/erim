@@ -1,0 +1,363 @@
+# carbon/templates/carbon/dynamic_input.html
+
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Firma Seçimi -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <label>Firma Seçimi:</label>
+            <select id="firm-select" class="form-control">
+                {% for firm in user_firms %}
+                <option value="{{ firm.id }}">{{ firm.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-6">
+            <label>Tarih/Saat:</label>
+            <input type="datetime-local" id="input-datetime" class="form-control" 
+                   value="{% now 'Y-m-d\TH:i' %}">
+        </div>
+    </div>
+
+    <!-- Kapsam ve Alt Kapsam Seçimi -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <label>Kapsam:</label>
+            <select id="scope-select" class="form-control">
+                <option value="">-- Kapsam Seçin --</option>
+                <option value="1">Kapsam 1 - Doğrudan Emisyonlar</option>
+                <option value="2">Kapsam 2 - Dolaylı Emisyonlar</option>
+                <option value="3">Kapsam 3 - Diğer Dolaylı</option>
+                <option value="4">Kapsam 4 - Tedarik Zinciri</option>
+            </select>
+        </div>
+        <div class="col-md-6">
+            <label>Alt Kapsam:</label>
+            <select id="subscope-select" class="form-control" disabled>
+                <option value="">-- Önce Kapsam Seçin --</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- Dinamik Form Alanları -->
+    <div id="dynamic-form-container" class="card" style="display:none;">
+        <div class="card-body">
+            <h5 class="card-title" id="form-title">Veri Girişi</h5>
+            <form id="carbon-input-form">
+                <div id="dynamic-fields">
+                    <!-- JavaScript ile doldurulacak -->
+                </div>
+                <button type="submit" class="btn btn-primary mt-3">
+                    <i class="fas fa-save"></i> Kaydet
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Mevcut Girişler Listesi -->
+    <div class="mt-5">
+        <h4>Son Girişler</h4>
+        <table class="table table-striped" id="inputs-table">
+            <thead>
+                <tr>
+                    <th>Tarih/Saat</th>
+                    <th>Kapsam</th>
+                    <th>Alt Kapsam</th>
+                    <th>Detaylar</th>
+                    <th>CO2e (ton)</th>
+                    <th>İşlemler</th>
+                </tr>
+            </thead>
+            <tbody id="inputs-tbody">
+                <!-- AJAX ile doldurulacak -->
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+// Alt kapsam tanımları ve form yapıları
+const subscopeDefinitions = {
+    '1': {
+        '1.1': {
+            name: 'Sabit Yanma',
+            fields: [
+                {name: 'fuel_type', label: 'Yakıt Türü', type: 'select', options: 'fuel_types'},
+                {name: 'consumption', label: 'FV (m³)', type: 'number', step: '0.01'}
+            ]
+        },
+        '1.2': {
+            name: 'Mobil Yanma',
+            fields: [
+                {name: 'fuel_type', label: 'Yakıt Türü', type: 'select', options: 'fuel_types'},
+                {name: 'consumption', label: 'FV (lt)', type: 'number', step: '0.01'}
+            ]
+        },
+        '1.3': {
+            name: 'Proses Emisyonları',
+            fields: [
+                {name: 'process_name', label: 'Proses Adı', type: 'text'},
+                {name: 'material', label: 'Hammadde', type: 'text'},
+                {name: 'amount', label: 'Miktar (kg)', type: 'number', step: '0.01'},
+                {name: 'emission_factor', label: 'Emisyon Faktörü', type: 'number', step: '0.0001'}
+            ]
+        },
+        '1.4': {
+            name: 'Kaçak Emisyonlar',
+            fields: [
+                {name: 'device_name', label: 'Cihaz Adı', type: 'text'},
+                {name: 'gas_name', label: 'Gaz Adı', type: 'select', options: 'gas_types'},
+                {name: 'gwp', label: 'KIP', type: 'number', readonly: true},
+                {name: 'leak_rate', label: 'Kaçak (%)', type: 'number', step: '0.01'},
+                {name: 'gas_capacity', label: 'Gaz Kapasitesi', type: 'number', step: '0.01'},
+                {name: 'quantity', label: 'Adet', type: 'number', step: '1'}
+            ]
+        },
+        '1.5': {
+            name: 'AFOLU',
+            fields: [
+                {name: 'land_type', label: 'Arazi Tipi', type: 'select', options: 'land_types'},
+                {name: 'area', label: 'Alan (m²)', type: 'number', step: '1'},
+                {name: 'change_type', label: 'Değişim Türü', type: 'select', options: 'change_types'}
+            ]
+        }
+    },
+    '2': {
+        '2.1': {
+            name: 'Elektrik Tüketimi',
+            fields: [
+                {name: 'facility_name', label: 'İsim', type: 'text'},
+                {name: 'consumption', label: 'FV (kWh)', type: 'number', step: '0.01'}
+            ]
+        }
+    },
+    '3': {
+        '3.1': {
+            name: 'Satın Alınan Mal ve Hizmet Taşımacılığı',
+            fields: [
+                {name: 'name', label: 'İsim', type: 'text'},
+                {name: 'vehicle_fuel_type', label: 'Araç Yakıt Türü', type: 'select', options: 'fuel_types'},
+                {name: 'consumption', label: 'FV (litre)', type: 'number', step: '0.01'}
+            ]
+        },
+        '3.5': {
+            name: 'İş Seyahatleri',
+            fields: [
+                {name: 'name', label: 'İsim', type: 'text'},
+                {name: 'travel_type', label: 'Seyahat Türü', type: 'select', 
+                 options: [{value: 'flight', text: 'Uçak'}, 
+                          {value: 'hotel', text: 'Otel'}, 
+                          {value: 'vehicle', text: 'Taşıt'}]},
+                {name: 'consumption', label: 'Tüketim', type: 'number', step: '0.01', 
+                 dynamic_label: true} // Label travel_type'a göre değişecek
+            ]
+        }
+    },
+    '4': {
+        '4.1': {
+            name: 'Satın Alınan Mal ve Hizmetler',
+            fields: [
+                {name: 'material_type', label: 'Tür', type: 'select', options: 'material_types'},
+                {name: 'amount', label: 'FV (kg)', type: 'number', step: '0.01'}
+            ]
+        },
+        '4.3': {
+            name: 'Atık',
+            fields: [
+                {name: 'waste_type', label: 'Atık Türü', type: 'select',
+                 options: [{value: 'solid', text: 'Katı'}, 
+                          {value: 'water', text: 'Su'}, 
+                          {value: 'other', text: 'Diğer'}]},
+                {name: 'name', label: 'İsim', type: 'text'},
+                {name: 'amount', label: 'Miktar', type: 'number', step: '0.01'},
+                // Diğer seçilirse ek alanlar
+                {name: 'fuel_type', label: 'Yakıt Tipi', type: 'text', conditional: 'waste_type:other'},
+                {name: 'company', label: 'Şirket', type: 'text', conditional: 'waste_type:other'}
+            ]
+        }
+    }
+};
+
+// Dinamik form oluşturma
+function createDynamicForm(subscope) {
+    const container = document.getElementById('dynamic-fields');
+    container.innerHTML = '';
+    
+    const definition = subscopeDefinitions[currentScope][subscope];
+    if (!definition) return;
+    
+    document.getElementById('form-title').textContent = `${subscope} - ${definition.name}`;
+    
+    definition.fields.forEach(field => {
+        const formGroup = document.createElement('div');
+        formGroup.className = 'form-group';
+        
+        const label = document.createElement('label');
+        label.textContent = field.label;
+        formGroup.appendChild(label);
+        
+        let input;
+        if (field.type === 'select') {
+            input = document.createElement('select');
+            input.className = 'form-control';
+            
+            // Seçenekleri yükle
+            if (typeof field.options === 'string') {
+                loadSelectOptions(input, field.options);
+            } else {
+                field.options.forEach(opt => {
+                    const option = document.createElement('option');
+                    option.value = opt.value;
+                    option.textContent = opt.text;
+                    input.appendChild(option);
+                });
+            }
+        } else {
+            input = document.createElement('input');
+            input.type = field.type;
+            input.className = 'form-control';
+            if (field.step) input.step = field.step;
+            if (field.readonly) input.readOnly = true;
+        }
+        
+        input.name = field.name;
+        input.id = `field-${field.name}`;
+        
+        // Conditional fields için kontrol
+        if (field.conditional) {
+            formGroup.style.display = 'none';
+            formGroup.dataset.conditional = field.conditional;
+        }
+        
+        formGroup.appendChild(input);
+        container.appendChild(formGroup);
+    });
+    
+    document.getElementById('dynamic-form-container').style.display = 'block';
+}
+
+// AJAX ile seçenekleri yükle
+function loadSelectOptions(selectElement, optionType) {
+    fetch(`/carbon/api/options/${optionType}/`)
+        .then(response => response.json())
+        .then(data => {
+            data.forEach(item => {
+                const option = document.createElement('option');
+                option.value = item.id;
+                option.textContent = item.name;
+                selectElement.appendChild(option);
+            });
+        });
+}
+
+// Event listeners
+document.getElementById('scope-select').addEventListener('change', function() {
+    const scope = this.value;
+    currentScope = scope;
+    
+    const subscopeSelect = document.getElementById('subscope-select');
+    subscopeSelect.innerHTML = '<option value="">-- Alt Kapsam Seçin --</option>';
+    
+    if (scope && subscopeDefinitions[scope]) {
+        subscopeSelect.disabled = false;
+        Object.keys(subscopeDefinitions[scope]).forEach(key => {
+            const option = document.createElement('option');
+            option.value = key;
+            option.textContent = `${key} - ${subscopeDefinitions[scope][key].name}`;
+            subscopeSelect.appendChild(option);
+        });
+    } else {
+        subscopeSelect.disabled = true;
+        document.getElementById('dynamic-form-container').style.display = 'none';
+    }
+});
+
+document.getElementById('subscope-select').addEventListener('change', function() {
+    if (this.value) {
+        createDynamicForm(this.value);
+    } else {
+        document.getElementById('dynamic-form-container').style.display = 'none';
+    }
+});
+
+// Form gönderimi
+document.getElementById('carbon-input-form').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const formData = new FormData(this);
+    const data = {
+        firm: document.getElementById('firm-select').value,
+        datetime: document.getElementById('input-datetime').value,
+        scope: currentScope,
+        subscope: document.getElementById('subscope-select').value,
+        data: {}
+    };
+    
+    // Form verilerini topla
+    for (let [key, value] of formData.entries()) {
+        data.data[key] = value;
+    }
+    
+    // AJAX ile gönder
+    fetch('/carbon/api/dynamic-input/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (result.success) {
+            alert('Veri başarıyla kaydedildi!');
+            loadRecentInputs();
+            this.reset();
+        } else {
+            alert('Hata: ' + result.message);
+        }
+    });
+});
+
+// Son girişleri yükle
+function loadRecentInputs() {
+    const firmId = document.getElementById('firm-select').value;
+    
+    fetch(`/carbon/api/recent-inputs/?firm=${firmId}`)
+        .then(response => response.json())
+        .then(data => {
+            const tbody = document.getElementById('inputs-tbody');
+            tbody.innerHTML = '';
+            
+            data.forEach(input => {
+                const row = `
+                    <tr>
+                        <td>${formatDateTime(input.datetime)}</td>
+                        <td>Kapsam ${input.scope}</td>
+                        <td>${input.subscope}</td>
+                        <td>${formatDetails(input.data)}</td>
+                        <td>${input.co2e_total}</td>
+                        <td>
+                            <button class="btn btn-sm btn-warning" onclick="editInput(${input.id})">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button class="btn btn-sm btn-danger" onclick="deleteInput(${input.id})">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+                tbody.innerHTML += row;
+            });
+        });
+}
+
+// Sayfa yüklendiğinde
+document.addEventListener('DOMContentLoaded', function() {
+    loadRecentInputs();
+});
+</script>
+{% endblock %}
