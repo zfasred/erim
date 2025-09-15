@@ -101,51 +101,6 @@ class CarbonCoefficient(models.Model):
         return True
 
 
-class SubScope(models.Model):
-    """Alt kapsam tanımları"""
-    scope = models.IntegerField(choices=[
-        (1, 'Kapsam 1'),
-        (2, 'Kapsam 2'),
-        (3, 'Kapsam 3'),
-        (4, 'Kapsam 4'),
-    ])
-    code = models.CharField(max_length=10)  # "1.1", "1.2" vb.
-    name = models.CharField(max_length=100)
-    description = models.TextField(blank=True)
-    
-    class Meta:
-        unique_together = ['scope', 'code']
-        ordering = ['scope', 'code']
-    
-    def __str__(self):
-        return f"{self.code} - {self.name}"
-
-
-class DynamicCarbonInput(models.Model):
-    """Tek model tüm girişler için"""
-    firm = models.ForeignKey('core.Firm', on_delete=models.CASCADE)
-    datetime = models.DateTimeField()
-    scope = models.IntegerField()
-    subscope = models.ForeignKey(SubScope, on_delete=models.PROTECT)
-    
-    # JSON field ile dinamik veri saklama
-    data = models.JSONField()
-    
-    # Hesaplanan değerler
-    co2e_total = models.DecimalField(max_digits=15, decimal_places=6, default=0)
-    
-    # Metadata
-    created_by = models.ForeignKey('core.User', on_delete=models.SET_NULL, null=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-    
-    class Meta:
-        indexes = [
-            models.Index(fields=['firm', 'datetime']),
-            models.Index(fields=['scope', 'subscope']),
-        ]
-
-
 class CoefficientType(models.Model):
     """Katsayı türlerini tanımlar (EF_CO2, EF_CH4, EF_N2O, NCV vb.)"""
     name = models.CharField(max_length=100, verbose_name="Katsayı Türü")
@@ -282,7 +237,6 @@ class EmissionFactor(models.Model):
         return None
 
 
-
 # Mevcut modellerinizi koruyorum ama geliştirilmiş versiyonlarla birlikte kullanabilirsiniz
 class InputCategory(models.Model):
     """Girdi kategorileri - backward compatibility için"""
@@ -407,3 +361,47 @@ class ExcelReport(models.Model):
     def save(self, *args, **kwargs):
         self.calculate_totals()
         super().save(*args, **kwargs)
+
+
+class SubScope(models.Model):
+    """Alt kapsam tanımları"""
+    scope = models.IntegerField(choices=[
+        (1, 'Kapsam 1'),
+        (2, 'Kapsam 2'),
+        (3, 'Kapsam 3'),
+        (4, 'Kapsam 4'),
+    ])
+    code = models.CharField(max_length=10)  # "1.1", "1.2" vb.
+    name = models.CharField(max_length=100)
+    description = models.TextField(blank=True)
+    
+    class Meta:
+        unique_together = ['scope', 'code']
+        ordering = ['scope', 'code']
+    
+    def __str__(self):
+        return f"{self.code} - {self.name}"
+
+class DynamicCarbonInput(models.Model):
+    """Tek model tüm girişler için"""
+    firm = models.ForeignKey('core.Firm', on_delete=models.CASCADE)
+    datetime = models.DateTimeField()
+    scope = models.IntegerField()
+    subscope = models.ForeignKey(SubScope, on_delete=models.PROTECT)
+    
+    # JSON field ile dinamik veri saklama
+    data = models.JSONField()
+    
+    # Hesaplanan değerler
+    co2e_total = models.DecimalField(max_digits=15, decimal_places=6, default=0)
+    
+    # Metadata
+    created_by = models.ForeignKey('core.User', on_delete=models.SET_NULL, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        indexes = [
+            models.Index(fields=['firm', 'datetime']),
+            models.Index(fields=['scope', 'subscope']),
+        ]

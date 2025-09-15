@@ -8,7 +8,7 @@ from .models import (
     SubScope,
     ExcelReport,
     CarbonCoefficient, CoefficientType, EmissionFactor, FuelType,
-    InputCategory, InputData, Report
+    InputCategory, InputData
 )
 from core.models import User as CoreUser, Firm
 
@@ -196,48 +196,22 @@ class BulkUploadForm(forms.Form):
         return file
 
 # Rapor oluşturma formu
-class ReportGenerateForm(forms.ModelForm):
-    class Meta:
-        model = Report
-        fields = ['report_period_start', 'report_period_end']
-        widgets = {
-            'report_period_start': forms.DateInput(format='%Y-%m-%d', attrs={'type': 'date'}),
-            'report_period_end': forms.DateInput(format='%Y-%m-%d', attrs={'type': 'date'}),
-        }
-        labels = {
-            'report_period_start': 'Rapor Dönemi Başlangıç',
-            'report_period_end': 'Rapor Dönemi Bitiş',
-        }
-    
-    def __init__(self, *args, **kwargs):
-        self.firm = kwargs.pop('firm', None)
-        super().__init__(*args, **kwargs)
-        
-        # Varsayılan değerler - bu yılın başı ve bugün
-        if not self.instance.pk:
-            self.fields['report_period_start'].initial = date(date.today().year, 1, 1)
-            self.fields['report_period_end'].initial = date.today()
-    
-    def clean(self):
-        cleaned_data = super().clean()
-        start_date = cleaned_data.get('report_period_start')
-        end_date = cleaned_data.get('report_period_end')
-        
-        if start_date and end_date:
-            if end_date < start_date:
-                raise ValidationError("Bitiş tarihi başlangıç tarihinden önce olamaz.")
-        
-        return cleaned_data
-    
-    def save(self, commit=True):
-        instance = super().save(commit=False)
-        instance.report_date = date.today()
-        if self.firm:
-            instance.firm = self.firm
-        if commit:
-            instance.calculate_totals()  # Toplamları hesapla
-            instance.save()
-        return instance
+class ReportGenerateForm(forms.Form):
+    firm = forms.ModelChoiceField(
+        queryset=Firm.objects.all(),
+        label="Firma",
+        required=True
+    )
+    start_date = forms.DateField(
+        label="Başlangıç Tarihi",
+        widget=forms.DateInput(attrs={'type': 'date'}),
+        required=True
+    )
+    end_date = forms.DateField(
+        label="Bitiş Tarihi", 
+        widget=forms.DateInput(attrs={'type': 'date'}),
+        required=True
+    )
 
 # Mevcut formlarınız (backward compatibility için)
 class InputCategoryForm(forms.ModelForm):

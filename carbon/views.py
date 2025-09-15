@@ -16,7 +16,8 @@ from io import BytesIO
 from .models import (
     CarbonCoefficient, CoefficientType, EmissionFactor, FuelType,
     InputCategory, InputData,
-    FuelType, GWPValues, ExcelReport
+    GWPValues, ExcelReport,
+    DynamicCarbonInput, SubScope  # Yeni modelleri ekledik
 )
 from .forms import (
     CarbonCoefficientForm, CoefficientTypeForm, EmissionFactorForm, FuelTypeForm,
