@@ -6,6 +6,7 @@ from django.contrib.auth.decorators import login_required, permission_required
 from django.contrib import messages
 from django.db.models import Q, Sum, Avg, Count
 from django.http import JsonResponse, HttpResponse
+from django.views.decorators.csrf import csrf_exempt
 from datetime import date, datetime, timedelta
 import json
 import pandas as pd
@@ -34,6 +35,122 @@ def get_user_firms(request):
         return Firm.objects.filter(user_associations__user=request.user.user)
     else:
         return Firm.objects.filter(user_associations__user=request.user)
+
+
+@login_required
+def api_get_options(request, option_type):
+    """Dinamik seçenekleri döndür"""
+    
+    options = {
+        'fuel_types': list(FuelType.objects.values('id', 'name')),
+        'gas_types': [
+            {'id': 'R410A', 'name': 'R410A (GWP: 2088)'},
+            {'id': 'R32', 'name': 'R32 (GWP: 675)'},
+            {'id': 'R404A', 'name': 'R404A (GWP: 3922)'},
+        ],
+        'material_types': list(CarbonCoefficient.objects.filter(
+            scope=4, subscope='4.1'
+        ).values('id', 'name')),
+        'land_types': [
+            {'id': 'forest', 'name': 'Orman'},
+            {'id': 'agriculture', 'name': 'Tarım'},
+            {'id': 'urban', 'name': 'Kentsel'},
+        ],
+        'change_types': [
+            {'id': 'deforestation', 'name': 'Ormansızlaşma'},
+            {'id': 'afforestation', 'name': 'Ağaçlandırma'},
+            {'id': 'urbanization', 'name': 'Kentleşme'},
+        ]
+    }
+    
+    return JsonResponse(options.get(option_type, []), safe=False)
+
+@login_required
+@csrf_exempt
+def api_dynamic_input(request):
+    """Dinamik veri girişi kaydet"""
+    
+    if request.method == 'POST':
+        data = json.loads(request.body)
+        
+        # Alt kapsam bul veya oluştur
+        subscope, _ = SubScope.objects.get_or_create(
+            scope=data['scope'],
+            code=data['subscope'],
+            defaults={'name': f"Alt Kapsam {data['subscope']}"}
+        )
+        
+        # CO2 hesaplama
+        co2e_total = calculate_co2e(data['scope'], data['subscope'], data['data'])
+        
+        # Kaydet
+        input_obj = DynamicCarbonInput.objects.create(
+            firm_id=data['firm'],
+            datetime=data['datetime'],
+            scope=data['scope'],
+            subscope=subscope,
+            data=data['data'],
+            co2e_total=co2e_total,
+            created_by=request.user.user if hasattr(request.user, 'user') else request.user
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'id': input_obj.id,
+            'co2e_total': float(co2e_total)
+        })
+    
+    return JsonResponse({'success': False, 'message': 'Invalid method'})
+
+def calculate_co2e(scope, subscope, data):
+    """CO2 eşdeğeri hesaplama"""
+    
+    # Her alt kapsam için özel hesaplama mantığı
+    if scope == 1 and subscope == '1.1':
+        # Sabit yanma
+        fuel_type = FuelType.objects.get(id=data['fuel_type'])
+        consumption = float(data['consumption'])
+        return (consumption * fuel_type.co2_factor * fuel_type.density) / 1000000
+        
+    elif scope == 1 and subscope == '1.4':
+        # Kaçak emisyonlar
+        gwp = float(data['gwp'])
+        leak_rate = float(data['leak_rate']) / 100
+        capacity = float(data['gas_capacity'])
+        quantity = float(data['quantity'])
+        return (gwp * leak_rate * capacity * quantity) / 1000
+        
+    elif scope == 2 and subscope == '2.1':
+        # Elektrik
+        consumption = float(data['consumption'])
+        grid_factor = 0.442  # kg CO2/kWh (Türkiye ortalaması)
+        return (consumption * grid_factor) / 1000
+        
+    # Diğer hesaplamalar...
+    
+    return 0
+
+@login_required
+def api_recent_inputs(request):
+    """Son girişleri getir"""
+    
+    firm_id = request.GET.get('firm')
+    inputs = DynamicCarbonInput.objects.filter(
+        firm_id=firm_id
+    ).order_by('-datetime')[:20]
+    
+    data = []
+    for inp in inputs:
+        data.append({
+            'id': inp.id,
+            'datetime': inp.datetime.isoformat(),
+            'scope': inp.scope,
+            'subscope': f"{inp.subscope.code} - {inp.subscope.name}",
+            'data': inp.data,
+            'co2e_total': float(inp.co2e_total)
+        })
+    
+    return JsonResponse(data, safe=False)
 
 
 @login_required
