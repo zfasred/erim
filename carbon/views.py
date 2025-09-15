@@ -7,6 +7,7 @@ from django.contrib import messages
 from django.db.models import Q, Sum, Avg, Count
 from django.http import JsonResponse, HttpResponse
 from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_http_methods
 from datetime import date, datetime, timedelta
 import json
 import pandas as pd
@@ -311,6 +312,82 @@ def ajax_get_coefficient_types(request):
                 types.append({'code': code, 'label': label})
     
     return JsonResponse({'coefficient_types': types})
+
+
+@login_required
+@permission_required('carbon.view_input_carbon', raise_exception=True)
+def dynamic_input_view(request):
+    """Dinamik karbon girişi sayfası"""
+    
+    # Kullanıcının erişebileceği firmalar
+    if request.user.is_superuser:
+        user_firms = Firm.objects.all()
+    elif hasattr(request.user, 'user'):
+        user_firms = Firm.objects.filter(user_associations__user=request.user.user)
+    else:
+        user_firms = Firm.objects.filter(user_associations__user=request.user)
+    
+    context = {
+        'user_firms': user_firms,
+    }
+    
+    return render(request, 'carbon/dynamic_input.html', context)
+
+
+@login_required
+@require_http_methods(["POST", "DELETE"])
+def api_dynamic_input(request, input_id=None):
+    """Dinamik veri girişi kaydet veya sil"""
+    
+    if request.method == 'DELETE' and input_id:
+        try:
+            input_obj = DynamicCarbonInput.objects.get(id=input_id)
+            # Yetki kontrolü
+            if hasattr(request.user, 'user'):
+                user_firms = Firm.objects.filter(user_associations__user=request.user.user)
+            else:
+                user_firms = Firm.objects.filter(user_associations__user=request.user)
+            
+            if input_obj.firm not in user_firms and not request.user.is_superuser:
+                return JsonResponse({'success': False, 'message': 'Yetkiniz yok'})
+            
+            input_obj.delete()
+            return JsonResponse({'success': True})
+        except DynamicCarbonInput.DoesNotExist:
+            return JsonResponse({'success': False, 'message': 'Kayıt bulunamadı'})
+    
+    elif request.method == 'POST':
+        # Mevcut POST kodu...
+        data = json.loads(request.body)
+        
+        # Alt kapsam bul veya oluştur
+        subscope, _ = SubScope.objects.get_or_create(
+            scope=data['scope'],
+            code=data['subscope'],
+            defaults={'name': f"Alt Kapsam {data['subscope']}"}
+        )
+        
+        # CO2 hesaplama
+        co2e_total = calculate_co2e(data['scope'], data['subscope'], data['data'])
+        
+        # Kaydet
+        input_obj = DynamicCarbonInput.objects.create(
+            firm_id=data['firm'],
+            datetime=data['datetime'],
+            scope=data['scope'],
+            subscope=subscope,
+            data=data['data'],
+            co2e_total=co2e_total,
+            created_by=request.user.user if hasattr(request.user, 'user') else request.user
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'id': input_obj.id,
+            'co2e_total': float(co2e_total)
+        })
+    
+    return JsonResponse({'success': False, 'message': 'Invalid method'})
 
 
 # Dashboard View

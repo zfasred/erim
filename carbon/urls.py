@@ -5,6 +5,8 @@ from . import views
 app_name = 'carbon'
 urlpatterns = [
 
+    path('api/dynamic-input/<int:input_id>/', views.api_dynamic_input, name='api-dynamic-input-delete'),
+
     path('input/dynamic/', views.dynamic_input_view, name='dynamic-input'),
     path('api/options/<str:option_type>/', views.api_get_options, name='api-options'),
     path('api/dynamic-input/', views.api_dynamic_input, name='api-dynamic-input'),
