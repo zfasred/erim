@@ -65,9 +65,7 @@
                 <tr>
                     <th>Tarih/Saat</th>
                     <th>Kapsam</th>
-                    <th>Alt Kapsam</th>
                     <th>Detaylar</th>
-                    <th>CO2e (ton)</th>
                     <th>İşlemler</th>
                 </tr>
             </thead>
@@ -336,10 +334,8 @@ function loadRecentInputs() {
                 const row = `
                     <tr>
                         <td>${formatDateTime(input.datetime)}</td>
-                        <td>Kapsam ${input.scope}</td>
-                        <td>${input.subscope}</td>
+                        <td>Kapsam ${input.subscope} - ${input.subscope_name}</td>
                         <td>${formatDetails(input.data)}</td>
-                        <td>${input.co2e_total}</td>
                         <td>
                             <button class="btn btn-sm btn-warning" onclick="editInput(${input.id})">
                                 <i class="fas fa-edit"></i>
