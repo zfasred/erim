@@ -2,7 +2,9 @@
 
 {% extends 'base.html' %}
 {% load static %}
-
+{% block extra_head %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+{% endblock %}
 {% block content %}
 <div class="container-fluid">
     <!-- Firma Seçimi -->
@@ -337,11 +339,11 @@ function loadRecentInputs() {
                         <td>Kapsam ${input.subscope} - ${input.subscope_name}</td>
                         <td>${formatDetails(input.data)}</td>
                         <td>
-                            <button class="btn btn-sm btn-warning" onclick="editInput(${input.id})">
-                                <i class="fas fa-edit"></i>
+                            <button class="btn btn-sm btn-warning" onclick="editInput(${input.id})" title="Düzenle">
+                                <i class="fas fa-edit"></i> Düzenle
                             </button>
-                            <button class="btn btn-sm btn-danger" onclick="deleteInput(${input.id})">
-                                <i class="fas fa-trash"></i>
+                            <button class="btn btn-sm btn-danger" onclick="deleteInput(${input.id})" title="Sil">
+                                <i class="fas fa-trash"></i> Sil
                             </button>
                         </td>
                     </tr>
@@ -392,8 +394,30 @@ function formatDetails(data) {
 
 // Düzenleme fonksiyonu
 function editInput(id) {
-    // TODO: Implement edit functionality
-    alert('Düzenleme özelliği yakında eklenecek!');
+    // Veriyi çek ve forma doldur
+    fetch(`/carbon/api/get-input/${id}/`)
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('firm-select').value = data.firm;
+            document.getElementById('input-datetime').value = data.datetime;
+            document.getElementById('scope-select').value = data.scope;
+            // Scope değiştir ve subscope'u doldur
+            document.getElementById('scope-select').dispatchEvent(new Event('change'));
+            setTimeout(() => {
+                document.getElementById('subscope-select').value = data.subscope;
+                document.getElementById('subscope-select').dispatchEvent(new Event('change'));
+                // Form alanlarını doldur
+                setTimeout(() => {
+                    for (let [key, value] of Object.entries(data.data)) {
+                        const field = document.getElementById(`field-${key}`);
+                        if (field) field.value = value;
+                    }
+                }, 100);
+            }, 100);
+            
+            // Güncelleme modu için işaretle
+            document.getElementById('carbon-input-form').dataset.editId = id;
+        });
 }
 
 // Silme fonksiyonu
