@@ -108,7 +108,8 @@ def api_recent_inputs(request):
             'id': inp.id,
             'datetime': inp.datetime.isoformat(),
             'scope': inp.scope,
-            'subscope': f"{inp.subscope.code} - {inp.subscope.name}",
+            'subscope': inp.subscope.code,
+            'subscope_name': inp.subscope.name,
             'data': inp.data,
             'co2e_total': float(inp.co2e_total)
         })
