@@ -219,6 +219,11 @@ function createDynamicForm(subscope) {
             input = document.createElement('input');
             input.type = field.type;
             input.className = 'form-control';
+
+            if (field.type === 'number') {
+                input.step = 'any';
+            }
+            
             if (field.readonly) input.readOnly = true;
         }
         
