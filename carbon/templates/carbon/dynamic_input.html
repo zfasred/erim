@@ -86,14 +86,14 @@ const subscopeDefinitions = {
             name: 'Sabit Yanma',
             fields: [
                 {name: 'fuel_type', label: 'Yakıt Türü', type: 'text'},
-                {name: 'consumption', label: 'FV (m³)', type: 'number', step: '0.01'}
+                {name: 'consumption', label: 'FV (m³)', type: 'number'}
             ]
         },
         '1.2': {
             name: 'Mobil Yanma',
             fields: [
                 {name: 'fuel_type', label: 'Yakıt Türü', type: 'text'},
-                {name: 'consumption', label: 'FV (lt)', type: 'number', step: '0.01'}
+                {name: 'consumption', label: 'FV (lt)', type: 'number'}
             ]
         },
         '1.3': {
@@ -101,26 +101,26 @@ const subscopeDefinitions = {
             fields: [
                 {name: 'process_name', label: 'Proses Adı', type: 'text'},
                 {name: 'material', label: 'Hammadde', type: 'text'},
-                {name: 'amount', label: 'Miktar (kg)', type: 'number', step: '0.01'},
-                {name: 'emission_factor', label: 'Emisyon Faktörü', type: 'number', step: '0.0001'}
+                {name: 'amount', label: 'Miktar (kg)', type: 'number'},
+                {name: 'emission_factor', label: 'Emisyon Faktörü', type: 'number'}
             ]
         },
         '1.4': {
             name: 'Kaçak Emisyonlar',
             fields: [
                 {name: 'device_name', label: 'Cihaz Adı', type: 'text'},
-                {name: 'gas_name', label: 'Gaz Adı', type: 'select', options: 'gas_types'},
-                {name: 'gwp', label: 'KIP', type: 'number', readonly: true},
-                {name: 'leak_rate', label: 'Kaçak (%)', type: 'number', step: '0.01'},
-                {name: 'gas_capacity', label: 'Gaz Kapasitesi', type: 'number', step: '0.01'},
-                {name: 'quantity', label: 'Adet', type: 'number', step: '1'}
+                {name: 'gas_name', label: 'Gaz Adı', type: 'text'},
+                {name: 'gwp', label: 'KIP', type: 'number'},
+                {name: 'leak_rate', label: 'Kaçak (%)', type: 'number'},
+                {name: 'gas_capacity', label: 'Gaz Kapasitesi', type: 'number'},
+                {name: 'quantity', label: 'Adet', type: 'number'}
             ]
         },
         '1.5': {
             name: 'AFOLU',
             fields: [
                 {name: 'land_type', label: 'Arazi Tipi', type: 'select', options: 'land_types'},
-                {name: 'area', label: 'Alan (m²)', type: 'number', step: '1'},
+                {name: 'area', label: 'Alan (m²)', type: 'number'},
                 {name: 'change_type', label: 'Değişim Türü', type: 'select', options: 'change_types'}
             ]
         }
@@ -130,7 +130,7 @@ const subscopeDefinitions = {
             name: 'Elektrik Tüketimi',
             fields: [
                 {name: 'facility_name', label: 'İsim', type: 'text'},
-                {name: 'consumption', label: 'FV (kWh)', type: 'number', step: '0.01'}
+                {name: 'consumption', label: 'FV (kWh)', type: 'number'}
             ]
         }
     },
@@ -140,7 +140,7 @@ const subscopeDefinitions = {
             fields: [
                 {name: 'name', label: 'İsim', type: 'text'},
                 {name: 'vehicle_fuel_type', label: 'Araç Yakıt Türü', type: 'select', options: 'fuel_types'},
-                {name: 'consumption', label: 'FV (litre)', type: 'number', step: '0.01'}
+                {name: 'consumption', label: 'FV (litre)', type: 'number'}
             ]
         },
         '3.5': {
@@ -151,8 +151,8 @@ const subscopeDefinitions = {
                  options: [{value: 'flight', text: 'Uçak'}, 
                           {value: 'hotel', text: 'Otel'}, 
                           {value: 'vehicle', text: 'Taşıt'}]},
-                {name: 'consumption', label: 'Tüketim', type: 'number', step: '0.01', 
-                 dynamic_label: true} // Label travel_type'a göre değişecek
+                {name: 'consumption', label: 'Tüketim', type: 'number', 
+                 dynamic_label: true}
             ]
         }
     },
@@ -161,7 +161,7 @@ const subscopeDefinitions = {
             name: 'Satın Alınan Mal ve Hizmetler',
             fields: [
                 {name: 'material_type', label: 'Tür', type: 'select', options: 'material_types'},
-                {name: 'amount', label: 'FV (kg)', type: 'number', step: '0.01'}
+                {name: 'amount', label: 'FV (kg)', type: 'number'}
             ]
         },
         '4.3': {
@@ -172,7 +172,7 @@ const subscopeDefinitions = {
                           {value: 'water', text: 'Su'}, 
                           {value: 'other', text: 'Diğer'}]},
                 {name: 'name', label: 'İsim', type: 'text'},
-                {name: 'amount', label: 'Miktar', type: 'number', step: '0.01'},
+                {name: 'amount', label: 'Miktar', type: 'number'},
                 // Diğer seçilirse ek alanlar
                 {name: 'fuel_type', label: 'Yakıt Tipi', type: 'text', conditional: 'waste_type:other'},
                 {name: 'company', label: 'Şirket', type: 'text', conditional: 'waste_type:other'}
@@ -219,7 +219,6 @@ function createDynamicForm(subscope) {
             input = document.createElement('input');
             input.type = field.type;
             input.className = 'form-control';
-            if (field.step) input.step = field.step;
             if (field.readonly) input.readOnly = true;
         }
         
