@@ -127,11 +127,13 @@ const subscopeDefinitions = {
                 {name: 'area', label: 'Alan (m²)', type: 'number'},
                 {name: 'change_type', label: 'Değişim Türü', type: 'text'}
             ]
-        },
+        }
+    },
     '2': {
         '2.1': {
             name: 'Elektrik Tüketimi',
             fields: [
+                {name: 'coefficient_set', label: 'Katsayı Kümesi', type: 'select', options: 'coefficient_names'},
                 {name: 'facility_name', label: 'İsim', type: 'text'},
                 {name: 'consumption', label: 'FV (kWh)', type: 'number'}
             ]
@@ -145,28 +147,28 @@ const subscopeDefinitions = {
                 {name: 'consumption', label: 'FV (litre)', type: 'number'}
             ]
         },
-    '3.2': {
-        name: 'Satılan Mal ve Hizmet Taşımacılığı',
-        fields: [
-            {name: 'vehicle_fuel_type', label: 'Araç Yakıt Türü', type: 'text'},
-            {name: 'consumption', label: 'FV (litre)', type: 'number'}
-        ]
-    },
-    '3.3': {
-        name: 'Kiralanan Varlıklar',
-        fields: [
-            {name: 'vehicle_fuel_type', label: 'Araç Yakıt Türü', type: 'text'},
-            {name: 'consumption', label: 'FV (litre)', type: 'number'}
-        ]
-    },
-    '3.4': {
-        name: 'İşe Gidiş Geliş',
-        fields: [
-            {name: 'name', label: 'İsim', type: 'text'},
-            {name: 'fuel_type', label: 'Yakıt Türü', type: 'text'},
-            {name: 'consumption', label: 'FV (lt)', type: 'number'}
-        ]
-    },
+        '3.2': {
+            name: 'Satılan Mal ve Hizmet Taşımacılığı',
+            fields: [
+                {name: 'vehicle_fuel_type', label: 'Araç Yakıt Türü', type: 'text'},
+                {name: 'consumption', label: 'FV (litre)', type: 'number'}
+            ]
+        },
+        '3.3': {
+            name: 'Kiralanan Varlıklar',
+            fields: [
+                {name: 'vehicle_fuel_type', label: 'Araç Yakıt Türü', type: 'text'},
+                {name: 'consumption', label: 'FV (litre)', type: 'number'}
+            ]
+        },
+        '3.4': {
+            name: 'İşe Gidiş Geliş',
+            fields: [
+                {name: 'name', label: 'İsim', type: 'text'},
+                {name: 'fuel_type', label: 'Yakıt Türü', type: 'text'},
+                {name: 'consumption', label: 'FV (lt)', type: 'number'}
+            ]
+        },
         '3.5': {
             name: 'İş Seyahatleri',
             fields: [
@@ -197,7 +199,6 @@ const subscopeDefinitions = {
                           {value: 'other', text: 'Diğer'}]},
                 {name: 'name', label: 'İsim', type: 'text'},
                 {name: 'amount', label: 'Miktar', type: 'number'},
-                // Diğer seçilirse ek alanlar
                 {name: 'fuel_type', label: 'Yakıt Tipi', type: 'text', conditional: 'waste_type:other'},
                 {name: 'company', label: 'Şirket', type: 'text', conditional: 'waste_type:other'}
             ]
