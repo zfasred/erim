@@ -138,11 +138,32 @@ const subscopeDefinitions = {
         '3.1': {
             name: 'Satın Alınan Mal ve Hizmet Taşımacılığı',
             fields: [
-                {name: 'name', label: 'İsim', type: 'text'},
-                {name: 'vehicle_fuel_type', label: 'Araç Yakıt Türü', type: 'select', options: 'fuel_types'},
+                {name: 'vehicle_fuel_type', label: 'Araç Yakıt Türü', type: 'text'},
                 {name: 'consumption', label: 'FV (litre)', type: 'number'}
             ]
         },
+    '3.2': {
+        name: 'Satılan Mal ve Hizmet Taşımacılığı',
+        fields: [
+            {name: 'vehicle_fuel_type', label: 'Araç Yakıt Türü', type: 'text'},
+            {name: 'consumption', label: 'FV (litre)', type: 'number'}
+        ]
+    },
+    '3.3': {
+        name: 'Kiralanan Varlıklar',
+        fields: [
+            {name: 'vehicle_fuel_type', label: 'Araç Yakıt Türü', type: 'text'},
+            {name: 'consumption', label: 'FV (litre)', type: 'number'}
+        ]
+    },
+    '3.4': {
+        name: 'İşe Gidiş Geliş',
+        fields: [
+            {name: 'name', label: 'İsim', type: 'text'},
+            {name: 'fuel_type', label: 'Yakıt Türü', type: 'text'},
+            {name: 'consumption', label: 'FV (lt)', type: 'number'}
+        ]
+    },
         '3.5': {
             name: 'İş Seyahatleri',
             fields: [
@@ -222,6 +243,8 @@ function createDynamicForm(subscope) {
 
             if (field.type === 'number') {
                 input.step = 'any';
+                input.setAttribute('pattern', '[0-9]*[.,]?[0-9]*');
+                input.setAttribute('inputmode', 'decimal');
             }
             
             if (field.readonly) input.readOnly = true;
