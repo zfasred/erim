@@ -36,6 +36,28 @@ def get_user_firms(request):
     else:
         return Firm.objects.filter(user_associations__user=request.user)
 
+@login_required
+def api_get_coefficient_names(request):
+    """Belirli kapsam ve alt kapsam için tanımlı isimleri getir"""
+    
+    scope = request.GET.get('scope')
+    subscope = request.GET.get('subscope')
+    
+    if not scope or not subscope:
+        return JsonResponse({'names': []})
+    
+    # O kapsam/alt kapsam için unique isimleri getir
+    names = CarbonCoefficient.objects.filter(
+        scope=scope,
+        subscope=subscope
+    ).values_list('name', flat=True).distinct()
+    
+    # Set kullanarak tekrarları temizle
+    unique_names = list(set(names))
+    names_list = [{'value': name, 'text': name} for name in sorted(unique_names)]
+    
+    return JsonResponse({'names': names_list})
+
 
 @login_required
 def api_get_options(request, option_type):
@@ -100,7 +122,7 @@ def api_recent_inputs(request):
     firm_id = request.GET.get('firm')
     inputs = DynamicCarbonInput.objects.filter(
         firm_id=firm_id
-    ).order_by('-datetime')[:20]
+    ).order_by('-id')[:50]
     
     data = []
     for inp in inputs:

@@ -4,6 +4,9 @@ from . import views
 app_name = 'carbon'
 
 urlpatterns = [
+
+    path('api/coefficient-names/', views.api_get_coefficient_names, name='api-coefficient-names'),
+
     # Karbon Yönetim
     path('management/', views.management_list_view, name='management-list'),
     
