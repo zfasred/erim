@@ -71,7 +71,6 @@
                 <th style="border: 1px solid #dee2e6; padding: 10px; text-align: left;">Katsayı Türü</th>
                 <th style="border: 1px solid #dee2e6; padding: 10px; text-align: left;">İsim</th>
                 <th style="border: 1px solid #dee2e6; padding: 10px; text-align: right;">Değer</th>
-                <th style="border: 1px solid #dee2e6; padding: 10px; text-align: left;">Birim</th>
                 <th style="border: 1px solid #dee2e6; padding: 10px; text-align: center;">Geçerlilik</th>
                 <th style="border: 1px solid #dee2e6; padding: 10px; text-align: center;">Durum</th>
                 <th style="border: 1px solid #dee2e6; padding: 10px; text-align: center;">İşlemler</th>
@@ -87,7 +86,6 @@
                     <strong>{{ coefficient.name }}</strong>
                 </td>
                 <td style="border: 1px solid #dee2e6; padding: 10px; text-align: right;">{{ coefficient.value }}</td>
-                <td style="border: 1px solid #dee2e6; padding: 10px;">{{ coefficient.unit }}</td>
                 <td style="border: 1px solid #dee2e6; padding: 10px; text-align: center; font-size: 0.9em;">
                     {{ coefficient.valid_from|date:"d.m.Y" }}
                     {% if coefficient.valid_to %}
@@ -111,7 +109,7 @@
             </tr>
             {% empty %}
             <tr>
-                <td colspan="9" style="border: 1px solid #dee2e6; padding: 20px; text-align: center; color: #6c757d;">
+                <td colspan="8" style="border: 1px solid #dee2e6; padding: 20px; text-align: center; color: #6c757d;">
                     Filtreleme kriterlerine uygun katsayı bulunamadı. Yeni katsayı eklemek için yukarıdaki butonu kullanın.
                 </td>
             </tr>

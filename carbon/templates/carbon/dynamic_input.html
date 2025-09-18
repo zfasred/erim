@@ -143,42 +143,45 @@ const subscopeDefinitions = {
         '3.1': {
             name: 'Satın Alınan Mal ve Hizmet Taşımacılığı',
             fields: [
-                {name: 'vehicle_fuel_type', label: 'Araç Yakıt Türü', type: 'text'},
+                {name: 'coefficient_set', label: 'Katsayı Kümesi', type: 'select', options: 'coefficient_names'},
+                {name: 'name', label: 'İsim', type: 'text'},
                 {name: 'consumption', label: 'FV (litre)', type: 'number'}
             ]
         },
         '3.2': {
             name: 'Satılan Mal ve Hizmet Taşımacılığı',
             fields: [
-                {name: 'vehicle_fuel_type', label: 'Araç Yakıt Türü', type: 'text'},
+                {name: 'coefficient_set', label: 'Katsayı Kümesi', type: 'select', options: 'coefficient_names'},
+                {name: 'name', label: 'İsim', type: 'text'},
                 {name: 'consumption', label: 'FV (litre)', type: 'number'}
             ]
         },
         '3.3': {
             name: 'Kiralanan Varlıklar',
             fields: [
-                {name: 'vehicle_fuel_type', label: 'Araç Yakıt Türü', type: 'text'},
+                {name: 'coefficient_set', label: 'Katsayı Kümesi', type: 'select', options: 'coefficient_names'},
+                {name: 'name', label: 'İsim', type: 'text'},
                 {name: 'consumption', label: 'FV (litre)', type: 'number'}
             ]
         },
         '3.4': {
             name: 'İşe Gidiş Geliş',
             fields: [
+                {name: 'coefficient_set', label: 'Katsayı Kümesi', type: 'select', options: 'coefficient_names'},
                 {name: 'name', label: 'İsim', type: 'text'},
-                {name: 'fuel_type', label: 'Yakıt Türü', type: 'text'},
                 {name: 'consumption', label: 'FV (lt)', type: 'number'}
             ]
         },
         '3.5': {
             name: 'İş Seyahatleri',
             fields: [
+                {name: 'coefficient_set', label: 'Katsayı Kümesi', type: 'select', options: 'coefficient_names'},
                 {name: 'name', label: 'İsim', type: 'text'},
                 {name: 'travel_type', label: 'Seyahat Türü', type: 'select', 
-                 options: [{value: 'flight', text: 'Uçak'}, 
-                          {value: 'hotel', text: 'Otel'}, 
-                          {value: 'vehicle', text: 'Taşıt'}]},
-                {name: 'consumption', label: 'Tüketim', type: 'number', 
-                 dynamic_label: true}
+                options: [{value: 'flight', text: 'Uçak'}, 
+                        {value: 'hotel', text: 'Otel'}, 
+                        {value: 'vehicle', text: 'Taşıt'}]},
+                {name: 'consumption', label: 'Tüketim', type: 'number'}
             ]
         }
     },
@@ -186,17 +189,24 @@ const subscopeDefinitions = {
         '4.1': {
             name: 'Satın Alınan Mal ve Hizmetler',
             fields: [
+                {name: 'coefficient_set', label: 'Katsayı Kümesi', type: 'select', options: 'coefficient_names'},  // EKLENDİ
+                {name: 'name', label: 'İsim', type: 'text'},  // EKLENDİ
                 {name: 'material_type', label: 'Tür', type: 'select', options: 'material_types'},
+                {name: 'amount', label: 'FV (kg)', type: 'number'}
+            ]
+        },
+        '4.2': {
+            name: 'Sermaye Malları',
+            fields: [
+                {name: 'coefficient_set', label: 'Katsayı Kümesi', type: 'select', options: 'coefficient_names'},
+                {name: 'name', label: 'İsim', type: 'text'},
                 {name: 'amount', label: 'FV (kg)', type: 'number'}
             ]
         },
         '4.3': {
             name: 'Atık',
             fields: [
-                {name: 'waste_type', label: 'Atık Türü', type: 'select',
-                 options: [{value: 'solid', text: 'Katı'}, 
-                          {value: 'water', text: 'Su'}, 
-                          {value: 'other', text: 'Diğer'}]},
+                {name: 'coefficient_set', label: 'Katsayı Kümesi', type: 'select', options: 'coefficient_names'},
                 {name: 'name', label: 'İsim', type: 'text'},
                 {name: 'amount', label: 'Miktar', type: 'number'},
                 {name: 'fuel_type', label: 'Yakıt Tipi', type: 'text', conditional: 'waste_type:other'},
@@ -375,8 +385,15 @@ document.getElementById('carbon-input-form').addEventListener('submit', function
 // Son girişleri yükle
 function loadRecentInputs() {
     const firmId = document.getElementById('firm-select').value;
+    const scope = document.getElementById('scope-select').value;
+    const subscope = document.getElementById('subscope-select').value;
     
-    fetch(`/carbon/api/recent-inputs/?firm=${firmId}`)
+    // Parametreleri oluştur
+    let url = `/carbon/api/recent-inputs/?firm=${firmId}`;
+    if (scope) url += `&scope=${scope}`;
+    if (subscope) url += `&subscope=${subscope}`;
+    
+    fetch(url)
         .then(response => response.json())
         .then(data => {
             const tbody = document.getElementById('inputs-tbody');
@@ -405,6 +422,9 @@ function loadRecentInputs() {
 
 // Sayfa yüklendiğinde
 document.addEventListener('DOMContentLoaded', function() {
+    document.getElementById('firm-select').addEventListener('change', loadRecentInputs);
+    document.getElementById('scope-select').addEventListener('change', loadRecentInputs);
+    document.getElementById('subscope-select').addEventListener('change', loadRecentInputs);
     loadRecentInputs();
 });
 
@@ -444,29 +464,59 @@ function formatDetails(data) {
 
 // Düzenleme fonksiyonu
 function editInput(id) {
-    // Veriyi çek ve forma doldur
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    // Veriyi çek
     fetch(`/carbon/api/get-input/${id}/`)
         .then(response => response.json())
         .then(data => {
+            if (!data.id) {
+                alert('Kayıt bulunamadı!');
+                return;
+            }
+            
+            // Form alanlarını doldur
             document.getElementById('firm-select').value = data.firm;
             document.getElementById('input-datetime').value = data.datetime;
             document.getElementById('scope-select').value = data.scope;
-            // Scope değiştir ve subscope'u doldur
-            document.getElementById('scope-select').dispatchEvent(new Event('change'));
+            
+            // Scope'u değiştir (alt kapsamları yükle)
+            currentScope = data.scope;
+            const evt = new Event('change');
+            document.getElementById('scope-select').dispatchEvent(evt);
+            
+            // Alt kapsam seçimi ve form oluşturma için bekle
             setTimeout(() => {
                 document.getElementById('subscope-select').value = data.subscope;
-                document.getElementById('subscope-select').dispatchEvent(new Event('change'));
+                createDynamicForm(data.subscope);  // Formu direkt oluştur
+                
                 // Form alanlarını doldur
                 setTimeout(() => {
                     for (let [key, value] of Object.entries(data.data)) {
                         const field = document.getElementById(`field-${key}`);
-                        if (field) field.value = value;
+                        if (field) {
+                            // Select elementler için özel işlem
+                            if (field.tagName === 'SELECT' && field.dataset.optionType === 'coefficient_names') {
+                                loadSelectOptions(field, 'coefficient_names');
+                                setTimeout(() => {
+                                    field.value = value;
+                                }, 300);
+                            } else {
+                                field.value = value;
+                            }
+                        }
                     }
-                }, 100);
-            }, 100);
-            
-            // Güncelleme modu için işaretle
-            document.getElementById('carbon-input-form').dataset.editId = id;
+                    
+                    // Güncelleme modu için işaret koy
+                    document.getElementById('carbon-input-form').dataset.editId = id;
+                    
+                    // Butonu güncelle
+                    const submitBtn = document.querySelector('#carbon-input-form button[type="submit"]');
+                    submitBtn.innerHTML = '<i class="fas fa-save"></i> Güncelle';
+                }, 200);
+            }, 200);
+        })
+        .catch(error => {
+            alert('Hata: ' + error);
         });
 }
 
