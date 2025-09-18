@@ -6,6 +6,7 @@ app_name = 'carbon'
 urlpatterns = [
 
     path('api/coefficient-names/', views.api_get_coefficient_names, name='api-coefficient-names'),
+    path('api/get-input/<int:input_id>/', views.api_get_input, name='api-get-input'),
 
     # Karbon Yönetim
     path('management/', views.management_list_view, name='management-list'),

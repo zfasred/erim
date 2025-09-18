@@ -60,6 +60,33 @@ def api_get_coefficient_names(request):
 
 
 @login_required
+def api_get_input(request, input_id):
+    """Tek bir girişin detaylarını getir"""
+    try:
+        input_obj = DynamicCarbonInput.objects.get(id=input_id)
+        
+        # Yetki kontrolü
+        if hasattr(request.user, 'user'):
+            user_firms = Firm.objects.filter(user_associations__user=request.user.user)
+        else:
+            user_firms = Firm.objects.filter(user_associations__user=request.user)
+            
+        if input_obj.firm not in user_firms and not request.user.is_superuser:
+            return JsonResponse({'success': False, 'message': 'Yetkiniz yok'})
+        
+        data = {
+            'id': input_obj.id,
+            'firm': input_obj.firm.id,
+            'datetime': input_obj.datetime.strftime('%Y-%m-%dT%H:%M'),
+            'scope': input_obj.scope,
+            'subscope': input_obj.subscope.code,
+            'data': input_obj.data
+        }
+        return JsonResponse(data)
+    except DynamicCarbonInput.DoesNotExist:
+        return JsonResponse({'success': False, 'message': 'Kayıt bulunamadı'})
+
+@login_required
 def api_get_options(request, option_type):
     """Dinamik seçenekleri döndür"""
     
@@ -117,13 +144,24 @@ def calculate_co2e(scope, subscope, data):
 
 @login_required
 def api_recent_inputs(request):
-    """Son girişleri getir"""
-    
+    """Son girişleri getir - filtreleme ile"""
+
     firm_id = request.GET.get('firm')
-    inputs = DynamicCarbonInput.objects.filter(
-        firm_id=firm_id
-    ).order_by('-id')[:50]
-    
+    scope = request.GET.get('scope')
+    subscope = request.GET.get('subscope')
+
+    # Temel filtre
+    inputs = DynamicCarbonInput.objects.filter(firm_id=firm_id)
+
+    # Ek filtreler
+    if scope:
+        inputs = inputs.filter(scope=scope)
+    if subscope:
+        inputs = inputs.filter(subscope__code=subscope)
+
+    # Sıralama ve limit
+    inputs = inputs.order_by('-id')[:100]  # Makul bir limit
+
     data = []
     for inp in inputs:
         data.append({
