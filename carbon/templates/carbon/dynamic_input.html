@@ -85,14 +85,16 @@ const subscopeDefinitions = {
         '1.1': {
             name: 'Sabit Yanma',
             fields: [
-                {name: 'fuel_type', label: 'Yakıt Türü', type: 'text'},
+                {name: 'coefficient_set', label: 'Katsayı Kümesi', type: 'select', options: 'coefficient_names'},
+                {name: 'fuel_name', label: 'İsim', type: 'text'},
                 {name: 'consumption', label: 'FV (m³)', type: 'number'}
             ]
         },
         '1.2': {
             name: 'Mobil Yanma',
             fields: [
-                {name: 'fuel_type', label: 'Yakıt Türü', type: 'text'},
+                {name: 'coefficient_set', label: 'Katsayı Kümesi', type: 'select', options: 'coefficient_names'},
+                {name: 'fuel_name', label: 'İsim', type: 'text'},
                 {name: 'consumption', label: 'FV (lt)', type: 'number'}
             ]
         },
@@ -108,6 +110,7 @@ const subscopeDefinitions = {
         '1.4': {
             name: 'Kaçak Emisyonlar',
             fields: [
+                {name: 'coefficient_set', label: 'Katsayı Kümesi', type: 'select', options: 'coefficient_names'},
                 {name: 'device_name', label: 'Cihaz Adı', type: 'text'},
                 {name: 'gas_name', label: 'Gaz Adı', type: 'text'},
                 {name: 'gwp', label: 'KIP', type: 'number'},
@@ -119,12 +122,12 @@ const subscopeDefinitions = {
         '1.5': {
             name: 'AFOLU',
             fields: [
-                {name: 'land_type', label: 'Arazi Tipi', type: 'select', options: 'land_types'},
+                {name: 'coefficient_set', label: 'Katsayı Kümesi', type: 'select', options: 'coefficient_names'},
+                {name: 'land_type', label: 'Arazi Tipi', type: 'text'},
                 {name: 'area', label: 'Alan (m²)', type: 'number'},
-                {name: 'change_type', label: 'Değişim Türü', type: 'select', options: 'change_types'}
+                {name: 'change_type', label: 'Değişim Türü', type: 'text'}
             ]
-        }
-    },
+        },
     '2': {
         '2.1': {
             name: 'Elektrik Tüketimi',
@@ -268,16 +271,35 @@ function createDynamicForm(subscope) {
 
 // AJAX ile seçenekleri yükle
 function loadSelectOptions(selectElement, optionType) {
-    fetch(`/carbon/api/options/${optionType}/`)
-        .then(response => response.json())
-        .then(data => {
-            data.forEach(item => {
-                const option = document.createElement('option');
-                option.value = item.id;
-                option.textContent = item.name;
-                selectElement.appendChild(option);
+    // Coefficient names için özel işlem
+    if (optionType === 'coefficient_names') {
+        const scope = currentScope;
+        const subscope = document.getElementById('subscope-select').value;
+        
+        fetch(`/carbon/api/coefficient-names/?scope=${scope}&subscope=${subscope}`)
+            .then(response => response.json())
+            .then(data => {
+                selectElement.innerHTML = '<option value="">-- Seçin --</option>';
+                data.names.forEach(item => {
+                    const option = document.createElement('option');
+                    option.value = item.value;
+                    option.textContent = item.text;
+                    selectElement.appendChild(option);
+                });
             });
-        });
+    } else {
+        // Diğer option'lar için mevcut kod
+        fetch(`/carbon/api/options/${optionType}/`)
+            .then(response => response.json())
+            .then(data => {
+                data.forEach(item => {
+                    const option = document.createElement('option');
+                    option.value = item.id;
+                    option.textContent = item.name;
+                    selectElement.appendChild(option);
+                });
+            });
+    }
 }
 
 // Event listeners
@@ -359,23 +381,23 @@ function loadRecentInputs() {
             const tbody = document.getElementById('inputs-tbody');
             tbody.innerHTML = '';
             
+            // Veri zaten sıralı geliyor, direkt ekle
             data.forEach(input => {
-                const row = `
-                    <tr>
-                        <td>${formatDateTime(input.datetime)}</td>
-                        <td>Kapsam ${input.subscope} - ${input.subscope_name}</td>
-                        <td>${formatDetails(input.data)}</td>
-                        <td>
-                            <button class="btn btn-sm btn-warning" onclick="editInput(${input.id})" title="Düzenle">
-                                <i class="fas fa-edit"></i> Düzenle
-                            </button>
-                            <button class="btn btn-sm btn-danger" onclick="deleteInput(${input.id})" title="Sil">
-                                <i class="fas fa-trash"></i> Sil
-                            </button>
-                        </td>
-                    </tr>
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${formatDateTime(input.datetime)}</td>
+                    <td>Kapsam ${input.subscope} - ${input.subscope_name}</td>
+                    <td>${formatDetails(input.data)}</td>
+                    <td>
+                        <button class="btn btn-sm btn-warning" onclick="editInput(${input.id})" title="Düzenle">
+                            <i class="fas fa-edit"></i> Düzenle
+                        </button>
+                        <button class="btn btn-sm btn-danger" onclick="deleteInput(${input.id})" title="Sil">
+                            <i class="fas fa-trash"></i> Sil
+                        </button>
+                    </td>
                 `;
-                tbody.innerHTML += row;
+                tbody.appendChild(row);
             });
         });
 }
