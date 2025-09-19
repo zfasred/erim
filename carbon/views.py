@@ -602,9 +602,34 @@ def dynamic_input_view(request):
 
 
 @login_required
-@require_http_methods(["POST", "DELETE"])
+@require_http_methods(["POST", "PUT", "DELETE"])
 def api_dynamic_input(request, input_id=None):
-    """Dinamik veri girişi kaydet veya sil"""
+    """Dinamik veri girişi kaydet, güncelle veya sil"""
+    
+    # PUT - Güncelleme
+    if request.method == 'PUT' and input_id:
+        try:
+            input_obj = DynamicCarbonInput.objects.get(id=input_id)
+            
+            # Yetki kontrolü
+            if hasattr(request.user, 'user'):
+                user_firms = Firm.objects.filter(user_associations__user=request.user.user)
+            else:
+                user_firms = Firm.objects.filter(user_associations__user=request.user)
+            
+            if input_obj.firm not in user_firms and not request.user.is_superuser:
+                return JsonResponse({'success': False, 'message': 'Yetkiniz yok'})
+            
+            # Güncelle
+            data = json.loads(request.body)
+            input_obj.datetime = data['datetime']
+            input_obj.data = data['data']
+            input_obj.save()
+            
+            return JsonResponse({'success': True, 'message': 'Güncellendi'})
+            
+        except DynamicCarbonInput.DoesNotExist:
+            return JsonResponse({'success': False, 'message': 'Kayıt bulunamadı'})
     
     if request.method == 'DELETE' and input_id:
         try:
