@@ -1186,75 +1186,30 @@ def input_list_view(request):
     """Karbon girdi sayfası - yeni dinamik sisteme yönlendir"""
     return redirect('carbon:dynamic-input')
 
-
-@login_required
-def report_list_view(request):
-    """Rapor listesi görüntüleme"""
-    
-    # Kullanıcının yetkili olduğu firmaları al
-    if request.user.is_superuser:
-        user_firms = Firm.objects.all()
-    else:
-        if hasattr(request.user, 'user'):
-            user_profile = request.user.user
-            user_firms = Firm.objects.filter(user_associations__user=user_profile)
-        else:
-            user_firms = Firm.objects.none()
-    
-    # Firma seçimi
-    selected_firm_id = request.GET.get('firm_id')
-    if selected_firm_id:
-        try:
-            selected_firm = Firm.objects.get(pk=selected_firm_id)
-            if not request.user.is_superuser and selected_firm not in user_firms:
-                messages.error(request, "Bu firmaya erişim yetkiniz yok!")
-                selected_firm = user_firms.first() if user_firms else None
-        except Firm.DoesNotExist:
-            selected_firm = user_firms.first() if user_firms else None
-    else:
-        selected_firm = user_firms.first() if user_firms else None
-    
-    # Rapor listesi
-    if selected_firm:
-        reports = Report.objects.filter(firm=selected_firm).order_by('-report_date')
-    else:
-        reports = Report.objects.none()
-    
-    # İstatistikler
-    total_emissions = 0
-    latest_report = None
-    
-    if reports.exists():
-        from django.db.models import Sum
-        total_emissions = reports.aggregate(
-            total=Sum('total_co2e')
-        )['total'] or 0
-        latest_report = reports.first()
-    
-    context = {
-        'reports': reports,
-        'user_firms': user_firms,
-        'selected_firm': selected_firm,
-        'total_emissions': total_emissions,
-        'latest_report': latest_report,
-    }
-    
-    return render(request, 'carbon/report_list.html', context)
-
-
 @login_required
 @permission_required('carbon.view_report_carbon', raise_exception=True)
 def report_list_view(request):
-    """Geçici rapor sayfası - ileride geliştirilecek"""
-    return HttpResponse("""
-        <html>
-        <body style="padding: 50px; font-family: Arial;">
-            <h1>Karbon Rapor Modülü</h1>
-            <p>Bu modül henüz geliştirme aşamasındadır.</p>
-            <a href="/portal/">Portal'a Dön</a>
-        </body>
-        </html>
-    """)
+    """Karbon rapor sayfası"""
+    
+    # Kullanıcının erişebileceği firmalar
+    if request.user.is_superuser:
+        user_firms = Firm.objects.all()
+    elif hasattr(request.user, 'user'):
+        user_firms = Firm.objects.filter(user_associations__user=request.user.user)
+    else:
+        user_firms = Firm.objects.filter(user_associations__user=request.user)
+    
+    # Bugünün tarihi
+    from datetime import date
+    today = date.today()
+    
+    context = {
+        'user_firms': user_firms,
+        'today': today,
+    }
+    
+    return render(request, 'carbon/report.html', context)
+
 
 @login_required
 def excel_report_view(request):
