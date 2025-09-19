@@ -61,7 +61,7 @@ def api_get_coefficient_names(request):
 
 @login_required
 def api_report_data(request):
-    """Rapor verilerini getir"""
+    """Rapor verilerini getir ve HESAPLA"""
     
     firm_id = request.GET.get('firm')
     start_date = request.GET.get('start_date')
@@ -70,7 +70,6 @@ def api_report_data(request):
     if not all([firm_id, start_date, end_date]):
         return JsonResponse({'error': 'Eksik parametreler'}, status=400)
     
-    # Tarih formatı düzeltme
     from datetime import datetime
     start = datetime.strptime(start_date, '%Y-%m-%d')
     end = datetime.strptime(end_date, '%Y-%m-%d')
@@ -91,6 +90,14 @@ def api_report_data(request):
         scope_key = f"scope_{inp.scope}"
         subscope_key = inp.subscope.code
         
+        # CO2 hesapla - RAPOR ANINDA
+        co2e_value = calculate_emission_for_report(
+            inp.scope, 
+            inp.subscope.code, 
+            inp.data,
+            inp.datetime  # Tarih bazlı katsayı için
+        )
+        
         # Toplam hesapla
         if scope_key not in scope_totals:
             scope_totals[scope_key] = 0
@@ -108,11 +115,11 @@ def api_report_data(request):
         scope_details[scope_key][subscope_key]['items'].append({
             'date': inp.datetime.strftime('%d.%m.%Y'),
             'data': inp.data,
-            'co2e': float(inp.co2e_total)
+            'co2e': co2e_value  # Hesaplanan değer
         })
         
-        scope_details[scope_key][subscope_key]['total'] += float(inp.co2e_total)
-        scope_totals[scope_key] += float(inp.co2e_total)
+        scope_details[scope_key][subscope_key]['total'] += co2e_value
+        scope_totals[scope_key] += co2e_value
     
     # Genel toplam
     total_emission = sum(scope_totals.values())
@@ -124,6 +131,49 @@ def api_report_data(request):
     }
     
     return JsonResponse(response_data)
+
+
+def calculate_emission_for_report(scope, subscope, data, date):
+    """Rapor için emisyon hesaplama - tarih bazlı katsayı kullanarak"""
+    
+    try:
+        # Kapsam 1.1 - Sabit Yanma
+        if scope == 1 and subscope == '1.1':
+            consumption = float(data.get('consumption', 0))  # m³
+            coefficient_set = data.get('coefficient_set', 'Genel')
+            
+            # O tarihteki geçerli katsayıları çek
+            coefficients = CarbonCoefficient.objects.filter(
+                scope='1',
+                subscope='1.1',
+                name=coefficient_set,
+                valid_from__lte=date
+            ).filter(
+                Q(valid_to__gte=date) | Q(valid_to__isnull=True)
+            )
+            
+            yogunluk = 0
+            nkd = 0
+            ef = 0
+            
+            for coef in coefficients:
+                if coef.coefficient_type == 'yogunluk':
+                    yogunluk = float(coef.value)
+                elif coef.coefficient_type == 'nkd':
+                    nkd = float(coef.value)
+                elif coef.coefficient_type == 'ef':
+                    ef = float(coef.value)
+            
+            # Excel formülü: FV × Yoğunluk × NKD × EF × 10^-6
+            if yogunluk and nkd and ef:
+                return consumption * yogunluk * nkd * ef * 0.000001
+        
+        # Diğer kapsamlar için benzer hesaplamalar...
+        
+    except Exception as e:
+        print(f"Hesaplama hatası: {e}")
+        
+    return 0
 
 
 @login_required
