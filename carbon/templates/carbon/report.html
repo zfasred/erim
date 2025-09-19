@@ -90,6 +90,99 @@
 </div>
 
 <script>
+function createTables(scopeDetails) {
+    const container = document.getElementById('tables-container');
+    container.innerHTML = '';
+    
+    // Her kapsam için tablo oluştur
+    for (let scope in scopeDetails) {
+        const scopeNumber = scope.replace('scope_', '');
+        const scopeData = scopeDetails[scope];
+        
+        // Kapsam başlığı
+        const scopeTitle = document.createElement('h4');
+        scopeTitle.className = 'mt-4 mb-3';
+        scopeTitle.textContent = `KAPSAM ${scopeNumber}`;
+        container.appendChild(scopeTitle);
+        
+        // Tablo
+        const table = document.createElement('table');
+        table.className = 'table table-bordered table-striped';
+        
+        let tableHTML = `
+            <thead class="thead-dark">
+                <tr>
+                    <th>Alt Kapsam</th>
+                    <th>İsim</th>
+                    <th>Tarih</th>
+                    <th>Değer</th>
+                    <th>Birim</th>
+                    <th>tCO₂e</th>
+                </tr>
+            </thead>
+            <tbody>
+        `;
+        
+        let scopeTotal = 0;
+        
+        // Alt kapsamları döngüle
+        for (let subscope in scopeData) {
+            const subscopeData = scopeData[subscope];
+            
+            subscopeData.items.forEach(item => {
+                // Veri detaylarını parse et
+                let name = item.data.fuel_name || item.data.name || item.data.facility_name || '-';
+                let value = item.data.consumption || item.data.amount || '-';
+                let unit = getUnit(subscope); // Birim fonksiyonu
+                
+                tableHTML += `
+                    <tr>
+                        <td>${subscope} - ${subscopeData.name}</td>
+                        <td>${name}</td>
+                        <td>${item.date}</td>
+                        <td>${value}</td>
+                        <td>${unit}</td>
+                        <td class="text-right">${item.co2e.toFixed(4)}</td>
+                    </tr>
+                `;
+                scopeTotal += item.co2e;
+            });
+        }
+        
+        // Toplam satırı
+        tableHTML += `
+            <tr class="font-weight-bold bg-light">
+                <td colspan="5" class="text-right">KAPSAM ${scopeNumber} TOPLAM:</td>
+                <td class="text-right">${scopeTotal.toFixed(4)}</td>
+            </tr>
+        `;
+        
+        tableHTML += '</tbody>';
+        table.innerHTML = tableHTML;
+        container.appendChild(table);
+    }
+}
+
+// Birim belirleme fonksiyonu
+function getUnit(subscope) {
+    const units = {
+        '1.1': 'm³',
+        '1.2': 'lt',
+        '1.3': 'kg',
+        '1.4': 'adet',
+        '1.5': 'm²',
+        '2.1': 'kWh',
+        '3.1': 'lt',
+        '3.2': 'lt',
+        '3.3': 'lt',
+        '3.4': 'lt',
+        '3.5': 'adet',
+        '4.1': 'kg',
+        '4.2': 'kg',
+        '4.3': 'kg'
+    };
+    return units[subscope] || '-';
+}
 document.getElementById('report-filter-form').addEventListener('submit', function(e) {
     e.preventDefault();
     
@@ -120,7 +213,8 @@ document.getElementById('report-filter-form').addEventListener('submit', functio
                 (data.scope_totals.scope_4 || 0).toFixed(2);
             
             // Tabloları oluştur (sonraki adımda)
-            console.log('Detay veriler:', data.scope_details);
+            //console.log('Detay veriler:', data.scope_details);
+            createTables(data.scope_details);
         })
         .catch(error => {
             alert('Veri çekme hatası: ' + error);
