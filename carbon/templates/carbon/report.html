@@ -102,14 +102,29 @@ document.getElementById('report-filter-form').addEventListener('submit', functio
         return;
     }
     
-    // Rapor alanını göster
-    document.getElementById('report-container').style.display = 'block';
-    
-    // Test için değerler
-    document.getElementById('scope1-total').textContent = '0.00';
-    document.getElementById('scope2-total').textContent = '0.00';
-    document.getElementById('scope3-total').textContent = '0.00';
-    document.getElementById('scope4-total').textContent = '0.00';
+    // Verileri çek
+    fetch(`/carbon/api/report-data/?firm=${firmId}&start_date=${startDate}&end_date=${endDate}`)
+        .then(response => response.json())
+        .then(data => {
+            // Rapor alanını göster
+            document.getElementById('report-container').style.display = 'block';
+            
+            // Özet kartları güncelle
+            document.getElementById('scope1-total').textContent = 
+                (data.scope_totals.scope_1 || 0).toFixed(2);
+            document.getElementById('scope2-total').textContent = 
+                (data.scope_totals.scope_2 || 0).toFixed(2);
+            document.getElementById('scope3-total').textContent = 
+                (data.scope_totals.scope_3 || 0).toFixed(2);
+            document.getElementById('scope4-total').textContent = 
+                (data.scope_totals.scope_4 || 0).toFixed(2);
+            
+            // Tabloları oluştur (sonraki adımda)
+            console.log('Detay veriler:', data.scope_details);
+        })
+        .catch(error => {
+            alert('Veri çekme hatası: ' + error);
+        });
 });
 </script>
 {% endblock %}
