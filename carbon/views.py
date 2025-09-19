@@ -60,6 +60,73 @@ def api_get_coefficient_names(request):
 
 
 @login_required
+def api_report_data(request):
+    """Rapor verilerini getir"""
+    
+    firm_id = request.GET.get('firm')
+    start_date = request.GET.get('start_date')
+    end_date = request.GET.get('end_date')
+    
+    if not all([firm_id, start_date, end_date]):
+        return JsonResponse({'error': 'Eksik parametreler'}, status=400)
+    
+    # Tarih formatı düzeltme
+    from datetime import datetime
+    start = datetime.strptime(start_date, '%Y-%m-%d')
+    end = datetime.strptime(end_date, '%Y-%m-%d')
+    end = end.replace(hour=23, minute=59, second=59)
+    
+    # Verileri çek
+    inputs = DynamicCarbonInput.objects.filter(
+        firm_id=firm_id,
+        datetime__gte=start,
+        datetime__lte=end
+    )
+    
+    # Kapsam bazlı gruplama
+    scope_totals = {}
+    scope_details = {}
+    
+    for inp in inputs:
+        scope_key = f"scope_{inp.scope}"
+        subscope_key = inp.subscope.code
+        
+        # Toplam hesapla
+        if scope_key not in scope_totals:
+            scope_totals[scope_key] = 0
+            scope_details[scope_key] = {}
+        
+        # Alt kapsam detayları
+        if subscope_key not in scope_details[scope_key]:
+            scope_details[scope_key][subscope_key] = {
+                'name': inp.subscope.name,
+                'items': [],
+                'total': 0
+            }
+        
+        # Veriyi ekle
+        scope_details[scope_key][subscope_key]['items'].append({
+            'date': inp.datetime.strftime('%d.%m.%Y'),
+            'data': inp.data,
+            'co2e': float(inp.co2e_total)
+        })
+        
+        scope_details[scope_key][subscope_key]['total'] += float(inp.co2e_total)
+        scope_totals[scope_key] += float(inp.co2e_total)
+    
+    # Genel toplam
+    total_emission = sum(scope_totals.values())
+    
+    response_data = {
+        'scope_totals': scope_totals,
+        'scope_details': scope_details,
+        'total_emission': total_emission
+    }
+    
+    return JsonResponse(response_data)
+
+
+@login_required
 def api_get_input(request, input_id):
     """Tek bir girişin detaylarını getir"""
     try:

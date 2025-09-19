@@ -34,4 +34,5 @@ urlpatterns = [
     
     # Rapor
     path('report/', views.report_list_view, name='report-list'),
+    path('api/report-data/', views.api_report_data, name='api-report-data'),
 ]
