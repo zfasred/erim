@@ -348,6 +348,7 @@ document.getElementById('carbon-input-form').addEventListener('submit', function
     e.preventDefault();
     
     const formData = new FormData(this);
+    const editId = this.dataset.editId;
     const data = {
         firm: document.getElementById('firm-select').value,
         datetime: document.getElementById('input-datetime').value,
@@ -361,9 +362,12 @@ document.getElementById('carbon-input-form').addEventListener('submit', function
         data.data[key] = value;
     }
     
-    // AJAX ile gönder
-    fetch('/carbon/api/dynamic-input/', {
-        method: 'POST',
+    // Güncelleme mi yoksa yeni kayıt mı?
+    const url = editId ? `/carbon/api/dynamic-input/${editId}/` : '/carbon/api/dynamic-input/';
+    const method = editId ? 'PUT' : 'POST';
+    
+    fetch(url, {
+        method: method,
         headers: {
             'Content-Type': 'application/json',
             'X-CSRFToken': getCookie('csrftoken')
@@ -373,9 +377,14 @@ document.getElementById('carbon-input-form').addEventListener('submit', function
     .then(response => response.json())
     .then(result => {
         if (result.success) {
-            alert('Veri başarıyla kaydedildi!');
+            alert(editId ? 'Güncellendi!' : 'Kaydedildi!');
             loadRecentInputs();
             this.reset();
+            
+            // Düzenleme modundan çık
+            delete this.dataset.editId;
+            const submitBtn = document.querySelector('#carbon-input-form button[type="submit"]');
+            submitBtn.innerHTML = '<i class="fas fa-save"></i> Kaydet';
         } else {
             alert('Hata: ' + result.message);
         }
