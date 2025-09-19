@@ -1,0 +1,115 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="container-fluid">
+    <h2 class="mb-4">Karbon Rapor</h2>
+    
+    <!-- Filtre Formu -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <form id="report-filter-form">
+                <div class="row">
+                    <div class="col-md-4">
+                        <label>Firma Seçimi:</label>
+                        <select id="firm-select" class="form-control" required>
+                            <option value="">-- Firma Seçin --</option>
+                            {% for firm in user_firms %}
+                            <option value="{{ firm.id }}">{{ firm.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label>Başlangıç Tarihi:</label>
+                        <input type="date" id="start-date" class="form-control" 
+                               value="{{ today|date:'Y-m-01' }}" required>
+                    </div>
+                    <div class="col-md-3">
+                        <label>Bitiş Tarihi:</label>
+                        <input type="date" id="end-date" class="form-control" 
+                               value="{{ today|date:'Y-m-d' }}" required>
+                    </div>
+                    <div class="col-md-2">
+                        <label>&nbsp;</label>
+                        <button type="submit" class="btn btn-primary btn-block">
+                            <i class="fas fa-search"></i> Rapor Oluştur
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Rapor Alanı -->
+    <div id="report-container" style="display:none;">
+        <!-- Özet Kartlar -->
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="card text-white bg-primary">
+                    <div class="card-body">
+                        <h5 class="card-title">Kapsam 1</h5>
+                        <h3 id="scope1-total">0</h3>
+                        <small>tCO₂e</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-white bg-success">
+                    <div class="card-body">
+                        <h5 class="card-title">Kapsam 2</h5>
+                        <h3 id="scope2-total">0</h3>
+                        <small>tCO₂e</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-white bg-warning">
+                    <div class="card-body">
+                        <h5 class="card-title">Kapsam 3</h5>
+                        <h3 id="scope3-total">0</h3>
+                        <small>tCO₂e</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-white bg-info">
+                    <div class="card-body">
+                        <h5 class="card-title">Kapsam 4</h5>
+                        <h3 id="scope4-total">0</h3>
+                        <small>tCO₂e</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Tablo Alanı -->
+        <div id="tables-container">
+            <!-- JavaScript ile doldurulacak -->
+        </div>
+    </div>
+</div>
+
+<script>
+document.getElementById('report-filter-form').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const firmId = document.getElementById('firm-select').value;
+    const startDate = document.getElementById('start-date').value;
+    const endDate = document.getElementById('end-date').value;
+    
+    if (!firmId) {
+        alert('Lütfen firma seçin!');
+        return;
+    }
+    
+    // Rapor alanını göster
+    document.getElementById('report-container').style.display = 'block';
+    
+    // Test için değerler
+    document.getElementById('scope1-total').textContent = '0.00';
+    document.getElementById('scope2-total').textContent = '0.00';
+    document.getElementById('scope3-total').textContent = '0.00';
+    document.getElementById('scope4-total').textContent = '0.00';
+});
+</script>
+{% endblock %}
