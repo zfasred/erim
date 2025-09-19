@@ -9,6 +9,7 @@ from django.http import JsonResponse, HttpResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 from datetime import date, datetime, timedelta
+from decimal import Decimal, ROUND_HALF_UP
 import json
 import pandas as pd
 from io import BytesIO
@@ -134,15 +135,17 @@ def api_report_data(request):
 
 
 def calculate_emission_for_report(scope, subscope, data, date):
-    """Rapor için emisyon hesaplama - tarih bazlı katsayı kullanarak"""
+    """Rapor için emisyon hesaplama - CO2e toplamı"""
     
     try:
         # Kapsam 1.1 - Sabit Yanma
         if scope == 1 and subscope == '1.1':
-            consumption = float(data.get('consumption', 0))  # m³
-            coefficient_set = data.get('coefficient_set', 'Genel')
+            consumption = float(data.get('consumption', 0))
+            coefficient_set = data.get('coefficient_set')
             
-            # O tarihteki geçerli katsayıları çek
+            if not coefficient_set:
+                return 0
+            
             coefficients = CarbonCoefficient.objects.filter(
                 scope='1',
                 subscope='1.1',
@@ -154,26 +157,150 @@ def calculate_emission_for_report(scope, subscope, data, date):
             
             yogunluk = 0
             nkd = 0
-            ef = 0
+            ef_co2 = 0
+            ef_ch4 = 0
+            ef_n2o = 0
             
             for coef in coefficients:
-                if coef.coefficient_type == 'yogunluk':
+                if coef.coefficient_type == 'YOGUNLUK_KG_M3':
                     yogunluk = float(coef.value)
-                elif coef.coefficient_type == 'nkd':
+                elif coef.coefficient_type == 'NKD':
                     nkd = float(coef.value)
-                elif coef.coefficient_type == 'ef':
-                    ef = float(coef.value)
+                elif coef.coefficient_type == 'EF_CO2':
+                    ef_co2 = float(coef.value)
+                elif coef.coefficient_type == 'EF_CH4':
+                    ef_ch4 = float(coef.value)
+                elif coef.coefficient_type == 'EF_N2O':
+                    ef_n2o = float(coef.value)
             
-            # Excel formülü: FV × Yoğunluk × NKD × EF × 10^-6
-            if yogunluk and nkd and ef:
-                return consumption * yogunluk * nkd * ef * 0.000001
+            if yogunluk and nkd:
+                co2_ton = consumption * yogunluk * nkd * ef_co2 * 0.000000001
+                ch4_ton = consumption * yogunluk * nkd * ef_ch4 * 0.000000001
+                n2o_ton = consumption * yogunluk * nkd * ef_n2o * 0.000000001
+                co2e_total = co2_ton + (ch4_ton * 27.9) + (n2o_ton * 273)
+                return co2e_total
+                
+        # Kapsam 1.2 - Mobil Yanma
+        elif scope == 1 and subscope == '1.2':
+            consumption = float(data.get('consumption', 0))
+            coefficient_set = data.get('coefficient_set')
+            
+            if not coefficient_set:
+                return 0
+                
+            coefficients = CarbonCoefficient.objects.filter(
+                scope='1',
+                subscope='1.2',
+                name=coefficient_set,
+                valid_from__lte=date
+            ).filter(
+                Q(valid_to__gte=date) | Q(valid_to__isnull=True)
+            )
+            
+            yogunluk = 0
+            nkd = 0
+            ef_co2 = 0
+            ef_ch4 = 0
+            ef_n2o = 0
+            
+            for coef in coefficients:
+                if coef.coefficient_type == 'YOGUNLUK_TON_LT':
+                    yogunluk = float(coef.value)
+                elif coef.coefficient_type == 'NKD':
+                    nkd = float(coef.value)
+                elif coef.coefficient_type == 'EF_CO2':
+                    ef_co2 = float(coef.value)
+                elif coef.coefficient_type == 'EF_CH4':
+                    ef_ch4 = float(coef.value)
+                elif coef.coefficient_type == 'EF_N2O':
+                    ef_n2o = float(coef.value)
+            
+            if yogunluk and nkd:
+                co2_ton = consumption * yogunluk * 1000 * nkd * ef_co2 * 0.000000001
+                ch4_ton = consumption * yogunluk * 1000 * nkd * ef_ch4 * 0.000000001
+                n2o_ton = consumption * yogunluk * 1000 * nkd * ef_n2o * 0.000000001
+                co2e_total = co2_ton + (ch4_ton * 27.9) + (n2o_ton * 273)
+                return co2e_total
+                
+        # Kapsam 1.4 - Kaçak Emisyonlar
+        elif scope == 1 and subscope == '1.4':
+            gwp = float(data.get('gwp', 0))  # KIP değeri
+            leak_rate = float(data.get('leak_rate', 0))  # Kaçak oranı (katsayı olarak, yüzde değil)
+            gas_capacity = float(data.get('gas_capacity', 0))  
+            quantity = float(data.get('quantity', 0))
+            
+            # Excel formülü: (Gaz Kapasitesi × Adet) × KIP / 1000 × Kaçak Oranı
+            result = (gas_capacity * quantity) * gwp / 1000 * leak_rate
+            return result
+                
+        # Kapsam 2.1 - Elektrik
+        elif scope == 2 and subscope == '2.1':
+            consumption = float(data.get('consumption', 0))
+            coefficient_set = data.get('coefficient_set')
+            
+            if not coefficient_set:
+                return 0
+                
+            ef_coef = CarbonCoefficient.objects.filter(
+                scope='2',
+                subscope='2.1',
+                name=coefficient_set,
+                coefficient_type='EF_TCO2_MWH',
+                valid_from__lte=date
+            ).filter(
+                Q(valid_to__gte=date) | Q(valid_to__isnull=True)
+            ).first()
+            
+            if ef_coef:
+                ef = float(ef_coef.value)
+                result = consumption * ef / 1000
+                return result
         
-        # Diğer kapsamlar için benzer hesaplamalar...
-        
+        # Kapsam 3.1, 3.2, 3.3 - Taşımacılık (Motorin)
+        elif scope == 3 and subscope in ['3.1', '3.2', '3.3']:
+            consumption = float(data.get('consumption', 0))  # litre
+            coefficient_set = data.get('coefficient_set')
+            
+            if not coefficient_set:
+                return 0
+                
+            coefficients = CarbonCoefficient.objects.filter(
+                scope='3',
+                subscope=subscope,
+                name=coefficient_set,
+                valid_from__lte=date
+            ).filter(
+                Q(valid_to__gte=date) | Q(valid_to__isnull=True)
+            )
+            
+            yogunluk = 0
+            nkd = 0
+            ef_co2 = 0
+            ef_ch4 = 0
+            ef_n2o = 0
+            
+            for coef in coefficients:
+                if coef.coefficient_type == 'YOGUNLUK_KG_LT':
+                    yogunluk = float(coef.value)
+                elif coef.coefficient_type == 'NKD':
+                    nkd = float(coef.value)
+                elif coef.coefficient_type == 'EF_CO2':
+                    ef_co2 = float(coef.value)
+                elif coef.coefficient_type == 'EF_CH4':
+                    ef_ch4 = float(coef.value)
+                elif coef.coefficient_type == 'EF_N2O':
+                    ef_n2o = float(coef.value)
+            
+            if yogunluk and nkd:
+                co2_ton = consumption * yogunluk * nkd * ef_co2 * 0.000000001
+                ch4_ton = consumption * yogunluk * nkd * ef_ch4 * 0.000000001
+                n2o_ton = consumption * yogunluk * nkd * ef_n2o * 0.000000001
+                co2e_total = co2_ton + (ch4_ton * 27.9) + (n2o_ton * 273)
+                return co2e_total
     except Exception as e:
         print(f"Hesaplama hatası: {e}")
         
-    return 0
+    return 0  # VARSAYILAN DÖNÜŞ DEĞERİ
 
 
 @login_required
