@@ -499,12 +499,13 @@ function formatDetails(data) {
 // Düzenleme fonksiyonu
 function editInput(id) {
     window.scrollTo({ top: 0, behavior: 'smooth' });
-    // Veriyi çek
+    
     fetch(`/carbon/api/get-input/${id}/`)
         .then(response => response.json())
         .then(data => {
-            console.log('Gelen veri:', data);
+            console.log('Gelen veri:', data);  // Browser konsolunda görünmeli
             console.log('Data içeriği:', data.data);
+            
             if (!data.id) {
                 alert('Kayıt bulunamadı!');
                 return;
@@ -515,61 +516,49 @@ function editInput(id) {
             document.getElementById('input-datetime').value = data.datetime;
             document.getElementById('scope-select').value = data.scope;
             
-            // Scope'u değiştir (alt kapsamları yükle)
+            // Scope'u değiştir
             currentScope = data.scope;
             const evt = new Event('change');
             document.getElementById('scope-select').dispatchEvent(evt);
             
-            // Alt kapsam seçimi ve form oluşturma için bekle
             setTimeout(() => {
                 document.getElementById('subscope-select').value = data.subscope;
-                createDynamicForm(data.subscope);  // Formu direkt oluştur
+                createDynamicForm(data.subscope);
                 
-                // Form alanlarını doldur
                 setTimeout(() => {
+                    // TÜM form alanlarını doldur
                     for (let [key, value] of Object.entries(data.data)) {
-                        console.log(`Alan: ${key}, Değer: ${value}`);
-                        const field = document.getElementById(`field-${key}`);
-                        const fieldByName = document.querySelector(`[name="${key}"]`);
-                        console.log(`field-${key} bulundu mu:`, field);
-                        console.log(`name="${key}" bulundu mu:`, fieldByName);
+                        console.log(`Dolduruluyor: ${key} = ${value}`);
+                        
+                        // amount'u consumption'a çevir (4.3 için)
+                        if (key === 'amount' && currentScope == 4 && data.subscope === '4.3') {
+                            key = 'consumption';
+                        }
+                        
+                        // Önce ID ile dene
+                        let field = document.getElementById(`field-${key}`);
+                        
+                        // ID bulunamazsa name ile dene
+                        if (!field) {
+                            field = document.querySelector(`[name="${key}"]`);
+                        }
+                        
                         if (field) {
                             field.value = value;
-                            console.log(`field-${key} değeri set edildi:`, value);
-                        } else if (fieldByName) {
-                            fieldByName.value = value;
-                            console.log(`name="${key}" değeri set edildi:`, value);
-                        }
-                        if (field) {
-                            // Select elementler için özel işlem
-                            if (field.tagName === 'SELECT' && field.dataset.optionType === 'coefficient_names') {
-                                loadSelectOptions(field, 'coefficient_names');
-                                setTimeout(() => {
-                                    field.value = value;
-                                }, 300);
-                            } else {
-                                field.value = value;
-                            }
-                        } else {
-                            // ID ile bulunamadıysa name ile dene
-                            const fieldByName = document.querySelector(`[name="${key}"]`);
-                            if (fieldByName) {
-                                fieldByName.value = value;
-                            }
+                            console.log(`${key} alanı dolduruldu: ${value}`);
                         }
                     }
                     
-                    // Güncelleme modu için işaret koy
+                    // Güncelleme modu işareti
                     document.getElementById('carbon-input-form').dataset.editId = id;
-                    
-                    // Butonu güncelle
                     const submitBtn = document.querySelector('#carbon-input-form button[type="submit"]');
                     submitBtn.innerHTML = '<i class="fas fa-save"></i> Güncelle';
                 }, 200);
             }, 200);
         })
         .catch(error => {
-            alert('Hata: ' + error);
+            console.error('Hata:', error);
+            alert('Veri yükleme hatası: ' + error);
         });
 }
 
