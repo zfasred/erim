@@ -256,8 +256,8 @@ def calculate_emission_for_report(scope, subscope, data, date):
                 result = consumption * ef / 1000
                 return result
         
-        # Kapsam 3.1, 3.2, 3.3 - Taşımacılık (Motorin)
-        elif scope == 3 and subscope in ['3.1', '3.2', '3.3']:
+        # Kapsam 3.1, 3.2, 3.3, 3.4 - Taşımacılık (Motorin)
+        elif scope == 3 and subscope in ['3.1', '3.2', '3.3', '3.4']:
             consumption = float(data.get('consumption', 0))  # litre
             coefficient_set = data.get('coefficient_set')
             
@@ -280,7 +280,7 @@ def calculate_emission_for_report(scope, subscope, data, date):
             ef_n2o = 0
             
             for coef in coefficients:
-                if coef.coefficient_type == 'YOGUNLUK_KG_LT':
+                if coef.coefficient_type == 'YOGUNLUK_TON_LT':  # ton/lt olarak
                     yogunluk = float(coef.value)
                 elif coef.coefficient_type == 'NKD':
                     nkd = float(coef.value)
@@ -292,11 +292,64 @@ def calculate_emission_for_report(scope, subscope, data, date):
                     ef_n2o = float(coef.value)
             
             if yogunluk and nkd:
-                co2_ton = consumption * yogunluk * nkd * ef_co2 * 0.000000001
-                ch4_ton = consumption * yogunluk * nkd * ef_ch4 * 0.000000001
-                n2o_ton = consumption * yogunluk * nkd * ef_n2o * 0.000000001
+                # DİKKAT: Kapsam 3 için 10^6 kullanılıyor!
+                co2_ton = consumption * yogunluk * nkd * ef_co2 * 0.000001  # 10^-6
+                ch4_ton = consumption * yogunluk * nkd * ef_ch4 * 0.000001  # 10^-6
+                n2o_ton = consumption * yogunluk * nkd * ef_n2o * 0.000001  # 10^-6
                 co2e_total = co2_ton + (ch4_ton * 27.9) + (n2o_ton * 273)
                 return co2e_total
+        # Kapsam 3.5 - İş Seyahatleri
+        elif scope == 3 and subscope == '3.5':
+            travel_type = data.get('travel_type', '')  # 'plane' veya 'car'
+            consumption = float(data.get('consumption', 0))  # litre
+            coefficient_set = data.get('coefficient_set')
+            
+            if not coefficient_set:
+                return 0
+            
+            coefficients = CarbonCoefficient.objects.filter(
+                scope='3',
+                subscope='3.5',
+                name=coefficient_set,
+                valid_from__lte=date
+            ).filter(
+                Q(valid_to__gte=date) | Q(valid_to__isnull=True)
+            )
+            
+            yogunluk = 0
+            nkd = 0
+            ef_co2 = 0
+            ef_ch4 = 0
+            ef_n2o = 0
+            
+            for coef in coefficients:
+                if 'YOGUNLUK' in coef.coefficient_type:
+                    yogunluk = float(coef.value)
+                elif coef.coefficient_type == 'NKD':
+                    nkd = float(coef.value)
+                elif coef.coefficient_type == 'EF_CO2':
+                    ef_co2 = float(coef.value)
+                elif coef.coefficient_type == 'EF_CH4':
+                    ef_ch4 = float(coef.value)
+                elif coef.coefficient_type == 'EF_N2O':
+                    ef_n2o = float(coef.value)
+            
+            if yogunluk and nkd:
+                if travel_type == 'plane':
+                    # Uçak için özel formül
+                    co2_ton = (consumption * ef_co2 * nkd * yogunluk * 0.000000001) / 250 * 4
+                    ch4_ton = (consumption * ef_ch4 * nkd * yogunluk * 0.000000001) / 250 * 4
+                    n2o_ton = (consumption * ef_n2o * nkd * yogunluk * 0.000000001) / 250 * 4
+                else:
+                    # Araç için normal formül
+                    co2_ton = consumption * yogunluk * nkd * ef_co2 * 0.000001
+                    ch4_ton = consumption * yogunluk * nkd * ef_ch4 * 0.000001
+                    n2o_ton = consumption * yogunluk * nkd * ef_n2o * 0.000001
+                    
+                co2e_total = co2_ton + (ch4_ton * 27.9) + (n2o_ton * 273)
+                return co2e_total
+
+
     except Exception as e:
         print(f"Hesaplama hatası: {e}")
         
