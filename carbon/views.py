@@ -255,10 +255,11 @@ def calculate_emission_for_report(scope, subscope, data, date):
                 ef = float(ef_coef.value)
                 result = consumption * ef / 1000
                 return result
-        
-        # Kapsam 3.1, 3.2, 3.3, 3.4 - Taşımacılık (Motorin)
+
+
+        # Kapsam 3.1, 3.2, 3.3, 3.4 - Taşımacılık 
         elif scope == 3 and subscope in ['3.1', '3.2', '3.3', '3.4']:
-            consumption = float(data.get('consumption', 0))  # litre
+            consumption = float(data.get('consumption', 0))
             coefficient_set = data.get('coefficient_set')
             
             if not coefficient_set:
@@ -280,8 +281,11 @@ def calculate_emission_for_report(scope, subscope, data, date):
             ef_n2o = 0
             
             for coef in coefficients:
-                if coef.coefficient_type == 'YOGUNLUK_TON_LT':  # ton/lt olarak
+                # HER İKİ YOĞUNLUK TİPİNİ DE KONTROL ET
+                if coef.coefficient_type == 'YOGUNLUK_TON_LT':
                     yogunluk = float(coef.value)
+                elif coef.coefficient_type == 'YOGUNLUK_KG_LT':
+                    yogunluk = float(coef.value) / 1000  # kg/lt'yi ton/lt'ye çevir
                 elif coef.coefficient_type == 'NKD':
                     nkd = float(coef.value)
                 elif coef.coefficient_type == 'EF_CO2':
@@ -292,12 +296,13 @@ def calculate_emission_for_report(scope, subscope, data, date):
                     ef_n2o = float(coef.value)
             
             if yogunluk and nkd:
-                # DİKKAT: Kapsam 3 için 10^6 kullanılıyor!
-                co2_ton = consumption * yogunluk * nkd * ef_co2 * 0.000001  # 10^-6
-                ch4_ton = consumption * yogunluk * nkd * ef_ch4 * 0.000001  # 10^-6
-                n2o_ton = consumption * yogunluk * nkd * ef_n2o * 0.000001  # 10^-6
+                co2_ton = consumption * yogunluk * nkd * ef_co2 * 0.000001
+                ch4_ton = consumption * yogunluk * nkd * ef_ch4 * 0.000001
+                n2o_ton = consumption * yogunluk * nkd * ef_n2o * 0.000001
                 co2e_total = co2_ton + (ch4_ton * 27.9) + (n2o_ton * 273)
                 return co2e_total
+                
+            return 0
 
         # Kapsam 3.5 - İş Seyahatleri
         elif scope == 3 and subscope == '3.5':
