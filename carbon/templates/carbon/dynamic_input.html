@@ -110,12 +110,11 @@ const subscopeDefinitions = {
         '1.4': {
             name: 'Kaçak Emisyonlar',
             fields: [
-                {name: 'coefficient_set', label: 'Katsayı Kümesi', type: 'select', options: 'coefficient_names'},
                 {name: 'device_name', label: 'Cihaz Adı', type: 'text'},
-                {name: 'gas_name', label: 'Gaz Adı', type: 'text'},
-                {name: 'gwp', label: 'KIP', type: 'number'},
-                {name: 'leak_rate', label: 'Kaçak (%)', type: 'number'},
-                {name: 'gas_capacity', label: 'Gaz Kapasitesi', type: 'number'},
+                {name: 'gas_name', label: 'Gaz Türü', type: 'text'},
+                {name: 'gwp', label: 'KIP (GWP)', type: 'number'},
+                {name: 'leak_rate', label: 'Kaçak Oranı', type: 'number'},
+                {name: 'gas_capacity', label: 'Gaz Kapasitesi (kg)', type: 'number'},
                 {name: 'quantity', label: 'Adet', type: 'number'}
             ]
         },
@@ -204,13 +203,19 @@ const subscopeDefinitions = {
             ]
         },
         '4.3': {
-            name: 'Atık',
+            name: 'Kullanılan Hizmetler',
             fields: [
                 {name: 'coefficient_set', label: 'Katsayı Kümesi', type: 'select', options: 'coefficient_names'},
                 {name: 'name', label: 'İsim', type: 'text'},
-                {name: 'amount', label: 'Miktar', type: 'number'},
-                {name: 'fuel_type', label: 'Yakıt Tipi', type: 'text', conditional: 'waste_type:other'},
-                {name: 'company', label: 'Şirket', type: 'text', conditional: 'waste_type:other'}
+                {name: 'service_type', label: 'Hizmet Türü', type: 'select',
+                options: [
+                    {value: 'electricity_loss', text: 'Elektrik Kayıp-Kaçak'},
+                    {value: 'water', text: 'Su Temini'},
+                    {value: 'wastewater', text: 'Atıksu Arıtma'},
+                    {value: 'solid_waste', text: 'Katı Atık Bertaraf'},
+                    {value: 'service', text: 'Diğer Hizmetler'}
+                ]},
+                {name: 'consumption', label: 'Tüketim', type: 'number', id: 'consumption-4-3'}
             ]
         }
     }
@@ -391,6 +396,26 @@ document.getElementById('carbon-input-form').addEventListener('submit', function
     });
 });
 
+// Hizmet türü değiştiğinde birim etiketini güncelle
+document.addEventListener('change', function(e) {
+    if (e.target.name === 'service_type' && currentScope == 4) {
+        const consumptionField = document.querySelector('input[name="consumption"]');
+        const consumptionLabel = document.querySelector('label[for="field-consumption"]');
+        
+        const units = {
+            'electricity_loss': 'Tüketim (MWh)',
+            'water': 'Tüketim (m³)',
+            'wastewater': 'Tüketim (m³)',
+            'solid_waste': 'Tüketim (ton)',
+            'service': 'Tüketim (TL)'
+        };
+        
+        if (consumptionLabel) {
+            consumptionLabel.textContent = units[e.target.value] || 'Tüketim';
+        }
+    }
+});
+
 // Son girişleri yükle
 function loadRecentInputs() {
     const firmId = document.getElementById('firm-select').value;
@@ -511,6 +536,12 @@ function editInput(id) {
                                 }, 300);
                             } else {
                                 field.value = value;
+                            }
+                        } else {
+                            // ID ile bulunamadıysa name ile dene
+                            const fieldByName = document.querySelector(`[name="${key}"]`);
+                            if (fieldByName) {
+                                fieldByName.value = value;
                             }
                         }
                     }
