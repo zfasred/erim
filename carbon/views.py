@@ -461,38 +461,150 @@ def calculate_emission_for_report(scope, subscope, data, date):
             consumption = float(data.get('consumption', 0))
             coefficient_set = data.get('coefficient_set', '')
             
+            print(f"4.3 Debug: service_type={service_type}, consumption={consumption}, coefficient_set={coefficient_set}")
+            
             if not coefficient_set:
+                print("  Katsayı seti yok!")
                 return 0
             
-            # Hizmet türüne göre katsayı tipi belirle
-            coef_type_map = {
-                'water': 'EF_KG_CO2E_M3',
-                'wastewater': 'EF_KG_CO2E_M3',
-                'solid_waste': 'EF_KG_CO2_TON',
-                'electricity_loss': 'EF_KG_CO2E_KWH',
-                'service': 'EF_KG_CO2_TL'
-            }
-            
-            coef_type = coef_type_map.get(service_type)
-            if not coef_type:
-                return 0
+            if service_type == 'service':
+                # Hizmetler için
+                ef_coef = CarbonCoefficient.objects.filter(
+                    scope='4',
+                    subscope='4.3',
+                    name=coefficient_set,
+                    coefficient_type='EF_KG_CO2_TL',
+                    valid_from__lte=date
+                ).filter(
+                    Q(valid_to__gte=date) | Q(valid_to__isnull=True)
+                ).first()
                 
-            ef_coef = CarbonCoefficient.objects.filter(
-                scope='4',
-                subscope='4.3',
-                name=coefficient_set,
-                coefficient_type=coef_type,
-                valid_from__lte=date
-            ).filter(
-                Q(valid_to__gte=date) | Q(valid_to__isnull=True)
-            ).first()
+                print(f"  Service katsayı arama: name={coefficient_set}, type=EF_KG_CO2_TL")
+                print(f"  Bulunan katsayı: {ef_coef}")
+                
+                if ef_coef:
+                    ef = float(ef_coef.value)
+                    result = consumption * ef / 1000
+                    print(f"  Hesaplama: {consumption} * {ef} / 1000 = {result}")
+                    return result
+                else:
+                    print(f"  KATSAYI BULUNAMADI! name={coefficient_set}, type=EF_KG_CO2_TL")
+                    return 0
             
-            if ef_coef:
-                ef = float(ef_coef.value)
-                result = consumption * ef / 1000
+            if service_type == 'water':
+                # Su temini için
+                ef_coef = CarbonCoefficient.objects.filter(
+                    scope='4',
+                    subscope='4.3',
+                    name=coefficient_set,
+                    coefficient_type='EF_KG_CO2E_M3',
+                    valid_from__lte=date
+                ).filter(
+                    Q(valid_to__gte=date) | Q(valid_to__isnull=True)
+                ).first()
+                
+                if ef_coef:
+                    ef = float(ef_coef.value)
+                    result = consumption * ef / 1000
+                    return result
+                    
+            elif service_type == 'electricity_loss':
+                # Elektrik kayıp-kaçak için
+                production_ef = 0
+                transmission_ef = 0
+                
+                coefficients = CarbonCoefficient.objects.filter(
+                    scope='4',
+                    subscope='4.3',
+                    name=coefficient_set,
+                    valid_from__lte=date
+                ).filter(
+                    Q(valid_to__gte=date) | Q(valid_to__isnull=True)
+                )
+                
+                for coef in coefficients:
+                    if coef.coefficient_type == 'EF_KG_CO2E_KWH':
+                        if 'üretim' in coef.name.lower():
+                            production_ef = float(coef.value)
+                        elif 'iletim' in coef.name.lower():
+                            transmission_ef = float(coef.value)
+                
+                production_emission = consumption * production_ef if production_ef else 0
+                transmission_emission = consumption * transmission_ef if transmission_ef else 0
+                result = (production_emission + transmission_emission) / 1000
                 return result
-            
-            return 0
+                
+            elif service_type == 'solid_waste':
+                # Katı atık için
+                ef_coef = CarbonCoefficient.objects.filter(
+                    scope='4',
+                    subscope='4.3',
+                    name=coefficient_set,
+                    coefficient_type='EF_KG_CO2_TON',
+                    valid_from__lte=date
+                ).filter(
+                    Q(valid_to__gte=date) | Q(valid_to__isnull=True)
+                ).first()
+                
+                if ef_coef:
+                    ef = float(ef_coef.value)
+                    # kg × (kgCO2/ton) / 1,000,000 = tCO2e
+                    result = consumption * ef / 1000000
+                    return result
+                    
+            elif service_type == 'wastewater':
+                # Atıksu için
+                ef_coef = CarbonCoefficient.objects.filter(
+                    scope='4',
+                    subscope='4.3',
+                    name=coefficient_set,
+                    coefficient_type='EF_KG_CO2E_M3',
+                    valid_from__lte=date
+                ).filter(
+                    Q(valid_to__gte=date) | Q(valid_to__isnull=True)
+                ).first()
+                
+                if ef_coef:
+                    ef = float(ef_coef.value)
+                    result = consumption * ef / 1000
+                    return result
+                    
+            elif service_type == 'service':
+                # Hizmetler için - yakıt bazlı hesaplama
+                yogunluk = 0
+                nkd = 0
+                ef_co2 = 0
+                ef_ch4 = 0
+                ef_n2o = 0
+                
+                coefficients = CarbonCoefficient.objects.filter(
+                    scope='4',
+                    subscope='4.3',
+                    name=coefficient_set,
+                    valid_from__lte=date
+                ).filter(
+                    Q(valid_to__gte=date) | Q(valid_to__isnull=True)
+                )
+                
+                for coef in coefficients:
+                    if coef.coefficient_type == 'YOGUNLUK_TON_LT':
+                        yogunluk = float(coef.value)
+                    elif coef.coefficient_type == 'NKD':
+                        nkd = float(coef.value)
+                    elif coef.coefficient_type == 'EF_CO2':
+                        ef_co2 = float(coef.value)
+                    elif coef.coefficient_type == 'EF_CH4':
+                        ef_ch4 = float(coef.value)
+                    elif coef.coefficient_type == 'EF_N2O':
+                        ef_n2o = float(coef.value)
+                
+                if yogunluk and nkd:
+                    # Litre bazlı hesaplama
+                    co2_ton = consumption * yogunluk * nkd * ef_co2 * 0.000001
+                    ch4_ton = consumption * yogunluk * nkd * ef_ch4 * 0.000001
+                    n2o_ton = consumption * yogunluk * nkd * ef_n2o * 0.000001
+                    co2e_total = co2_ton + (ch4_ton * 27.9) + (n2o_ton * 273)
+                    return co2e_total
 
     except Exception as e:
         print(f"Hesaplama hatası: {e}")
