@@ -503,6 +503,8 @@ function editInput(id) {
     fetch(`/carbon/api/get-input/${id}/`)
         .then(response => response.json())
         .then(data => {
+            console.log('Gelen veri:', data);
+            console.log('Data içeriği:', data.data);
             if (!data.id) {
                 alert('Kayıt bulunamadı!');
                 return;
@@ -526,7 +528,18 @@ function editInput(id) {
                 // Form alanlarını doldur
                 setTimeout(() => {
                     for (let [key, value] of Object.entries(data.data)) {
+                        console.log(`Alan: ${key}, Değer: ${value}`);
                         const field = document.getElementById(`field-${key}`);
+                        const fieldByName = document.querySelector(`[name="${key}"]`);
+                        console.log(`field-${key} bulundu mu:`, field);
+                        console.log(`name="${key}" bulundu mu:`, fieldByName);
+                        if (field) {
+                            field.value = value;
+                            console.log(`field-${key} değeri set edildi:`, value);
+                        } else if (fieldByName) {
+                            fieldByName.value = value;
+                            console.log(`name="${key}" değeri set edildi:`, value);
+                        }
                         if (field) {
                             // Select elementler için özel işlem
                             if (field.tagName === 'SELECT' && field.dataset.optionType === 'coefficient_names') {
