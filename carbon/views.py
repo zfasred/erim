@@ -378,12 +378,26 @@ def calculate_emission_for_report(scope, subscope, data, date):
         elif scope == 4 and subscope == '4.1':
             amount = float(data.get('amount', 0))  # kg
             material_type = data.get('material_type', '')  # Malzeme ID'si
-            
-            # Material_type aslında bir ID, bu ID'den katsayı ismini bulmalıyız
-            # Ama şimdilik coefficient_set kullanıyorsak:
             coefficient_set = data.get('coefficient_set', '')
+            name = data.get('name', '')
+            
+            #print(f"Kapsam 4.1 Debug:")
+            #print(f"  amount={amount}, material_type={material_type}")
+            #print(f"  coefficient_set={coefficient_set}, name={name}")
+            #print(f"  data={data}")
+            
+            # Eğer coefficient_set yoksa, material_type'dan bulmayı dene
+            if not coefficient_set and material_type:
+                # material_type bir ID olabilir, onu katsayı ismine çevir
+                material_coef = CarbonCoefficient.objects.filter(
+                    id=material_type
+                ).first()
+                if material_coef:
+                    coefficient_set = material_coef.name
+                    print(f"  Material type'dan bulunan: {coefficient_set}")
             
             if not coefficient_set:
+                print("  Katsayı seti bulunamadı!")
                 return 0
             
             # Katsayıyı bul
@@ -399,10 +413,85 @@ def calculate_emission_for_report(scope, subscope, data, date):
             
             if ef_coef:
                 ef = float(ef_coef.value)
-                # Formül: kg × kgCO2e/kg / 1000 = tCO2e
                 result = amount * ef / 1000
+                print(f"  EF={ef}, Sonuç={result}")
                 return result
+            else:
+                print(f"  Katsayı bulunamadı: {coefficient_set}")
                 
+            return 0
+
+        # Kapsam 4.2 - Sermaye Malları
+        elif scope == 4 and subscope == '4.2':
+            amount = float(data.get('amount', 0))  # kg
+            coefficient_set = data.get('coefficient_set', '')
+            
+            if not coefficient_set:
+                return 0
+            
+            # İki tür katsayı olabilir: Materyal ve Proses
+            material_ef = 0
+            process_ef = 0
+            
+            coefficients = CarbonCoefficient.objects.filter(
+                scope='4',
+                subscope='4.2',
+                name=coefficient_set,
+                valid_from__lte=date
+            ).filter(
+                Q(valid_to__gte=date) | Q(valid_to__isnull=True)
+            )
+            
+            for coef in coefficients:
+                if coef.coefficient_type == 'EF_KG_CO2_KG':
+                    material_ef = float(coef.value)
+                elif coef.coefficient_type == 'EF_TCO2E_KG':
+                    process_ef = float(coef.value)
+            
+            # Toplam emisyon
+            material_emission = amount * material_ef / 1000 if material_ef else 0
+            process_emission = amount * process_ef / 1000 if process_ef else 0
+            
+            result = material_emission + process_emission
+            return result
+
+        # Kapsam 4.3 - Kullanılan Hizmetler
+        elif scope == 4 and subscope == '4.3':
+            service_type = data.get('service_type', '')
+            consumption = float(data.get('consumption', 0))
+            coefficient_set = data.get('coefficient_set', '')
+            
+            if not coefficient_set:
+                return 0
+            
+            # Hizmet türüne göre katsayı tipi belirle
+            coef_type_map = {
+                'water': 'EF_KG_CO2E_M3',
+                'wastewater': 'EF_KG_CO2E_M3',
+                'solid_waste': 'EF_KG_CO2_TON',
+                'electricity_loss': 'EF_KG_CO2E_KWH',
+                'service': 'EF_KG_CO2_TL'
+            }
+            
+            coef_type = coef_type_map.get(service_type)
+            if not coef_type:
+                return 0
+                
+            ef_coef = CarbonCoefficient.objects.filter(
+                scope='4',
+                subscope='4.3',
+                name=coefficient_set,
+                coefficient_type=coef_type,
+                valid_from__lte=date
+            ).filter(
+                Q(valid_to__gte=date) | Q(valid_to__isnull=True)
+            ).first()
+            
+            if ef_coef:
+                ef = float(ef_coef.value)
+                result = consumption * ef / 1000
+                return result
+            
             return 0
 
     except Exception as e:
