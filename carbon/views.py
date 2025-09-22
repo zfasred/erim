@@ -298,61 +298,77 @@ def calculate_emission_for_report(scope, subscope, data, date):
                 n2o_ton = consumption * yogunluk * nkd * ef_n2o * 0.000001  # 10^-6
                 co2e_total = co2_ton + (ch4_ton * 27.9) + (n2o_ton * 273)
                 return co2e_total
+
         # Kapsam 3.5 - İş Seyahatleri
         elif scope == 3 and subscope == '3.5':
-            consumption = float(data.get('consumption', 0))  # litre
-            coefficient_set = data.get('coefficient_set')
+            consumption = float(data.get('consumption', 0))
+            coefficient_set = data.get('coefficient_set')  # Şehir adı: Tokyo, Dubai vs.
             travel_type = data.get('travel_type', '')  # flight, vehicle, hotel
             
             if not coefficient_set:
                 return 0
             
+            # Travel type'a göre doğru katsayı setini belirle
+            if travel_type == 'flight':
+                search_name = 'Uçak'
+            elif travel_type == 'vehicle':
+                search_name = 'Taşıt'
+            elif travel_type == 'hotel':
+                # Otel için şehir adını kullan
+                search_name = coefficient_set
+            else:
+                return 0
+            
             coefficients = CarbonCoefficient.objects.filter(
                 scope='3',
                 subscope='3.5',
-                name=coefficient_set,
+                name=search_name,
                 valid_from__lte=date
             ).filter(
                 Q(valid_to__gte=date) | Q(valid_to__isnull=True)
             )
             
-            yogunluk = 0
-            nkd = 0
-            ef_co2 = 0
-            ef_ch4 = 0
-            ef_n2o = 0
-            
-            for coef in coefficients:
-                if 'YOGUNLUK' in coef.coefficient_type:
-                    yogunluk = float(coef.value)
-                elif coef.coefficient_type == 'NKD':
-                    nkd = float(coef.value)
-                elif coef.coefficient_type == 'EF_CO2':
-                    ef_co2 = float(coef.value)
-                elif coef.coefficient_type == 'EF_CH4':
-                    ef_ch4 = float(coef.value)
-                elif coef.coefficient_type == 'EF_N2O':
-                    ef_n2o = float(coef.value)
-            
-            if yogunluk and nkd:
-                if travel_type == 'flight':
-                    # Uçak için özel formül
-                    co2_ton = (consumption * ef_co2 * nkd * yogunluk * 0.000000001) / 250 * 4
-                    ch4_ton = (consumption * ef_ch4 * nkd * yogunluk * 0.000000001) / 250 * 4
-                    n2o_ton = (consumption * ef_n2o * nkd * yogunluk * 0.000000001) / 250 * 4
-                elif travel_type == 'vehicle':
-                    # Taşıt için formül
-                    co2_ton = consumption * yogunluk * nkd * ef_co2 * 0.000001
-                    ch4_ton = consumption * yogunluk * nkd * ef_ch4 * 0.000001
-                    n2o_ton = consumption * yogunluk * nkd * ef_n2o * 0.000001
-                elif travel_type == 'hotel':
-                    # Otel için özel hesaplama eklenecek
-                    return 0  # Şimdilik
-                else:
-                    return 0
-                    
-                co2e_total = co2_ton + (ch4_ton * 27.9) + (n2o_ton * 273)
-                return co2e_total
+            if travel_type == 'hotel':
+                # Otel için özel hesaplama
+                ef_hotel = coefficients.filter(coefficient_type='EF_KG_CO2E_ODA').first()
+                if ef_hotel:
+                    # consumption = oda*gün sayısı
+                    result = consumption * float(ef_hotel.value) / 1000  # kg -> ton
+                    return result
+            else:
+                # Uçak ve Taşıt için normal hesaplama
+                yogunluk = 0
+                nkd = 0
+                ef_co2 = 0
+                ef_ch4 = 0
+                ef_n2o = 0
+                
+                for coef in coefficients:
+                    if 'YOGUNLUK' in coef.coefficient_type:
+                        yogunluk = float(coef.value)
+                    elif coef.coefficient_type == 'NKD':
+                        nkd = float(coef.value)
+                    elif coef.coefficient_type == 'EF_CO2':
+                        ef_co2 = float(coef.value)
+                    elif coef.coefficient_type == 'EF_CH4':
+                        ef_ch4 = float(coef.value)
+                    elif coef.coefficient_type == 'EF_N2O':
+                        ef_n2o = float(coef.value)
+                
+                if yogunluk and nkd:
+                    if travel_type == 'flight':
+                        # Uçak için özel formül
+                        co2_ton = (consumption * ef_co2 * nkd * yogunluk * 0.000000001) / 250 * 4
+                        ch4_ton = (consumption * ef_ch4 * nkd * yogunluk * 0.000000001) / 250 * 4
+                        n2o_ton = (consumption * ef_n2o * nkd * yogunluk * 0.000000001) / 250 * 4
+                    else:
+                        # Taşıt için formül
+                        co2_ton = consumption * yogunluk * nkd * ef_co2 * 0.000001
+                        ch4_ton = consumption * yogunluk * nkd * ef_ch4 * 0.000001
+                        n2o_ton = consumption * yogunluk * nkd * ef_n2o * 0.000001
+                        
+                    co2e_total = co2_ton + (ch4_ton * 27.9) + (n2o_ton * 273)
+                    return co2e_total
 
     except Exception as e:
         print(f"Hesaplama hatası: {e}")
