@@ -256,7 +256,6 @@ def calculate_emission_for_report(scope, subscope, data, date):
                 result = consumption * ef / 1000
                 return result
 
-
         # Kapsam 3.1, 3.2, 3.3, 3.4 - Taşımacılık 
         elif scope == 3 and subscope in ['3.1', '3.2', '3.3', '3.4']:
             consumption = float(data.get('consumption', 0))
@@ -374,6 +373,37 @@ def calculate_emission_for_report(scope, subscope, data, date):
                         
                     co2e_total = co2_ton + (ch4_ton * 27.9) + (n2o_ton * 273)
                     return co2e_total
+
+        # Kapsam 4.1 - Satın Alınan Mal ve Hizmetler
+        elif scope == 4 and subscope == '4.1':
+            amount = float(data.get('amount', 0))  # kg
+            material_type = data.get('material_type', '')  # Malzeme ID'si
+            
+            # Material_type aslında bir ID, bu ID'den katsayı ismini bulmalıyız
+            # Ama şimdilik coefficient_set kullanıyorsak:
+            coefficient_set = data.get('coefficient_set', '')
+            
+            if not coefficient_set:
+                return 0
+            
+            # Katsayıyı bul
+            ef_coef = CarbonCoefficient.objects.filter(
+                scope='4',
+                subscope='4.1',
+                name=coefficient_set,
+                coefficient_type='EF_KG_CO2_KG',
+                valid_from__lte=date
+            ).filter(
+                Q(valid_to__gte=date) | Q(valid_to__isnull=True)
+            ).first()
+            
+            if ef_coef:
+                ef = float(ef_coef.value)
+                # Formül: kg × kgCO2e/kg / 1000 = tCO2e
+                result = amount * ef / 1000
+                return result
+                
+            return 0
 
     except Exception as e:
         print(f"Hesaplama hatası: {e}")
