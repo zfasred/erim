@@ -300,9 +300,9 @@ def calculate_emission_for_report(scope, subscope, data, date):
                 return co2e_total
         # Kapsam 3.5 - İş Seyahatleri
         elif scope == 3 and subscope == '3.5':
-            travel_type = data.get('travel_type', '')  # 'plane' veya 'car'
             consumption = float(data.get('consumption', 0))  # litre
             coefficient_set = data.get('coefficient_set')
+            travel_type = data.get('travel_type', '')  # flight, vehicle, hotel
             
             if not coefficient_set:
                 return 0
@@ -335,20 +335,24 @@ def calculate_emission_for_report(scope, subscope, data, date):
                     ef_n2o = float(coef.value)
             
             if yogunluk and nkd:
-                if travel_type == 'plane':
+                if travel_type == 'flight':
                     # Uçak için özel formül
                     co2_ton = (consumption * ef_co2 * nkd * yogunluk * 0.000000001) / 250 * 4
                     ch4_ton = (consumption * ef_ch4 * nkd * yogunluk * 0.000000001) / 250 * 4
                     n2o_ton = (consumption * ef_n2o * nkd * yogunluk * 0.000000001) / 250 * 4
-                else:
-                    # Araç için normal formül
+                elif travel_type == 'vehicle':
+                    # Taşıt için formül
                     co2_ton = consumption * yogunluk * nkd * ef_co2 * 0.000001
                     ch4_ton = consumption * yogunluk * nkd * ef_ch4 * 0.000001
                     n2o_ton = consumption * yogunluk * nkd * ef_n2o * 0.000001
+                elif travel_type == 'hotel':
+                    # Otel için özel hesaplama eklenecek
+                    return 0  # Şimdilik
+                else:
+                    return 0
                     
                 co2e_total = co2_ton + (ch4_ton * 27.9) + (n2o_ton * 273)
                 return co2e_total
-
 
     except Exception as e:
         print(f"Hesaplama hatası: {e}")
