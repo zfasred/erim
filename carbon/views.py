@@ -8,7 +8,7 @@ from django.db.models import Q, Sum, Avg, Count
 from django.http import JsonResponse, HttpResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
 from decimal import Decimal, ROUND_HALF_UP
 import json
 
@@ -64,9 +64,9 @@ def api_report_data(request):
     if not all([firm_id, start_date, end_date]):
         return JsonResponse({'error': 'Eksik parametreler'}, status=400)
     
-    from datetime import datetime
-    start = datetime.strptime(start_date, '%Y-%m-%d')
-    end = datetime.strptime(end_date, '%Y-%m-%d')
+    from django.utils import timezone
+    start = timezone.make_aware(datetime.strptime(start_date, '%Y-%m-%d'))
+    end = timezone.make_aware(datetime.strptime(end_date, '%Y-%m-%d'))
     end = end.replace(hour=23, minute=59, second=59)
     
     # Verileri çek
@@ -374,11 +374,6 @@ def calculate_emission_for_report(scope, subscope, data, date):
             coefficient_set = data.get('coefficient_set', '')
             name = data.get('name', '')
             
-            #print(f"Kapsam 4.1 Debug:")
-            #print(f"  amount={amount}, material_type={material_type}")
-            #print(f"  coefficient_set={coefficient_set}, name={name}")
-            #print(f"  data={data}")
-            
             # Eğer coefficient_set yoksa, material_type'dan bulmayı dene
             if not coefficient_set and material_type:
                 # material_type bir ID olabilir, onu katsayı ismine çevir
@@ -387,10 +382,8 @@ def calculate_emission_for_report(scope, subscope, data, date):
                 ).first()
                 if material_coef:
                     coefficient_set = material_coef.name
-                    print(f"  Material type'dan bulunan: {coefficient_set}")
             
             if not coefficient_set:
-                print("  Katsayı seti bulunamadı!")
                 return 0
             
             # Katsayıyı bul
@@ -407,10 +400,7 @@ def calculate_emission_for_report(scope, subscope, data, date):
             if ef_coef:
                 ef = float(ef_coef.value)
                 result = amount * ef / 1000
-                print(f"  EF={ef}, Sonuç={result}")
                 return result
-            else:
-                print(f"  Katsayı bulunamadı: {coefficient_set}")
                 
             return 0
 
