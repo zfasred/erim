@@ -11,19 +11,12 @@ from django.views.decorators.http import require_http_methods
 from datetime import date, datetime, timedelta
 from decimal import Decimal, ROUND_HALF_UP
 import json
-import pandas as pd
-from io import BytesIO
 
 from .models import (
-    CarbonCoefficient, CoefficientType, EmissionFactor, FuelType,
-    InputCategory, InputData,
-    GWPValues, ExcelReport,
-    DynamicCarbonInput, SubScope  # Yeni modelleri ekledik
+    CarbonCoefficient, CoefficientType, EmissionFactor, InputCategory, InputData, GWPValues, ExcelReport, DynamicCarbonInput, SubScope
 )
 from .forms import (
-    CarbonCoefficientForm, CoefficientTypeForm, EmissionFactorForm, FuelTypeForm,
-    UserFirmAccessForm, BulkUploadForm, ReportGenerateForm,
-    InputCategoryForm, ReportForm
+    CarbonCoefficientForm, CoefficientTypeForm, EmissionFactorForm, UserFirmAccessForm, ReportGenerateForm, InputCategoryForm
 )
 from core.models import UserFirm, Firm, User
 
@@ -455,41 +448,19 @@ def calculate_emission_for_report(scope, subscope, data, date):
             result = material_emission + process_emission
             return result
 
-        # Kapsam 4.3 - Kullanılan Hizmetler
+        # Kapsam 4.3 - Kullanılan Hizmetler  
         elif scope == 4 and subscope == '4.3':
             service_type = data.get('service_type', '')
             consumption = float(data.get('consumption', 0))
+            amount = float(data.get('amount', 0))  # Eski kayıtlar için
             coefficient_set = data.get('coefficient_set', '')
             
-            print(f"4.3 Debug: service_type={service_type}, consumption={consumption}, coefficient_set={coefficient_set}")
+            # Eski kayıtlarda consumption yerine amount olabilir
+            if not consumption and amount:
+                consumption = amount
             
             if not coefficient_set:
-                print("  Katsayı seti yok!")
                 return 0
-            
-            if service_type == 'service':
-                # Hizmetler için
-                ef_coef = CarbonCoefficient.objects.filter(
-                    scope='4',
-                    subscope='4.3',
-                    name=coefficient_set,
-                    coefficient_type='EF_KG_CO2_TL',
-                    valid_from__lte=date
-                ).filter(
-                    Q(valid_to__gte=date) | Q(valid_to__isnull=True)
-                ).first()
-                
-                print(f"  Service katsayı arama: name={coefficient_set}, type=EF_KG_CO2_TL")
-                print(f"  Bulunan katsayı: {ef_coef}")
-                
-                if ef_coef:
-                    ef = float(ef_coef.value)
-                    result = consumption * ef / 1000
-                    print(f"  Hesaplama: {consumption} * {ef} / 1000 = {result}")
-                    return result
-                else:
-                    print(f"  KATSAYI BULUNAMADI! name={coefficient_set}, type=EF_KG_CO2_TL")
-                    return 0
             
             if service_type == 'water':
                 # Su temini için
@@ -509,30 +480,22 @@ def calculate_emission_for_report(scope, subscope, data, date):
                     return result
                     
             elif service_type == 'electricity_loss':
-                # Elektrik kayıp-kaçak için
-                production_ef = 0
-                transmission_ef = 0
-                
-                coefficients = CarbonCoefficient.objects.filter(
+                # Elektrik kayıp-kaçak için - TEK katsayı tipi
+                ef_coef = CarbonCoefficient.objects.filter(
                     scope='4',
                     subscope='4.3',
                     name=coefficient_set,
+                    coefficient_type='EF_KG_CO2E_KWH',
                     valid_from__lte=date
                 ).filter(
                     Q(valid_to__gte=date) | Q(valid_to__isnull=True)
-                )
+                ).first()
                 
-                for coef in coefficients:
-                    if coef.coefficient_type == 'EF_KG_CO2E_KWH':
-                        if 'üretim' in coef.name.lower():
-                            production_ef = float(coef.value)
-                        elif 'iletim' in coef.name.lower():
-                            transmission_ef = float(coef.value)
-                
-                production_emission = consumption * production_ef if production_ef else 0
-                transmission_emission = consumption * transmission_ef if transmission_ef else 0
-                result = (production_emission + transmission_emission) / 1000
-                return result
+                if ef_coef:
+                    ef = float(ef_coef.value)
+                    # MWh × kgCO2e/kWh = kgCO2e, sonra tona çevir
+                    result = consumption * ef / 1000
+                    return result
                 
             elif service_type == 'solid_waste':
                 # Katı atık için
@@ -553,12 +516,12 @@ def calculate_emission_for_report(scope, subscope, data, date):
                     return result
                     
             elif service_type == 'wastewater':
-                # Atıksu için
+                # Atıksu için - EF_KG_CO2_M3 tipinde
                 ef_coef = CarbonCoefficient.objects.filter(
                     scope='4',
                     subscope='4.3',
                     name=coefficient_set,
-                    coefficient_type='EF_KG_CO2E_M3',
+                    coefficient_type='EF_KG_CO2_M3',
                     valid_from__lte=date
                 ).filter(
                     Q(valid_to__gte=date) | Q(valid_to__isnull=True)
@@ -599,12 +562,16 @@ def calculate_emission_for_report(scope, subscope, data, date):
                         ef_n2o = float(coef.value)
                 
                 if yogunluk and nkd:
-                    # Litre bazlı hesaplama
+                    # Litre bazlı hesaplama (10^-6)
                     co2_ton = consumption * yogunluk * nkd * ef_co2 * 0.000001
                     ch4_ton = consumption * yogunluk * nkd * ef_ch4 * 0.000001
                     n2o_ton = consumption * yogunluk * nkd * ef_n2o * 0.000001
                     co2e_total = co2_ton + (ch4_ton * 27.9) + (n2o_ton * 273)
                     return co2e_total
+            
+            return 0
+
+
 
     except Exception as e:
         print(f"Hesaplama hatası: {e}")
@@ -1006,212 +973,6 @@ def api_dynamic_input(request, input_id=None):
     
     return JsonResponse({'success': False, 'message': 'Invalid method'})
 
-# Dashboard View
-@login_required
-@permission_required('carbon.view_management_carbon', raise_exception=True)
-def dashboard_view(request):
-    """Karbon yönetim dashboard'u"""
-    context = {}
-    
-    # Kullanıcının firmasını al
-    user_firms = Firm.objects.filter(user_associations__user=request.user.user if hasattr(request.user, 'user') else request.user)
-    
-    # Firma seçimi
-    selected_firm_id = request.GET.get('firm_id')
-    if selected_firm_id:
-        selected_firm = get_object_or_404(user_firms, pk=selected_firm_id)
-    else:
-        selected_firm = user_firms.first()
-    
-    if not selected_firm:
-        messages.warning(request, "Lütfen önce bir firma ile ilişkilendirilmeniz gerekmektedir.")
-        return redirect('carbon:management-list')
-    
-    context['selected_firm'] = selected_firm
-    context['user_firms'] = user_firms
-    
-    # Mevcut ay ve önceki ay
-    current_date = date.today()
-    current_year = current_date.year
-    current_month = current_date.month
-    
-    if current_month == 1:
-        prev_month = 12
-        prev_year = current_year - 1
-    else:
-        prev_month = current_month - 1
-        prev_year = current_year
-    
-    # Mevcut ay toplamları
-    scope1_current = Scope1Data.objects.filter(
-        firm=selected_firm,
-        period_year=current_year,
-        period_month=current_month
-    ).aggregate(total=Sum('total_co2e'))['total'] or 0
-    
-    scope2_current = Scope2Data.objects.filter(
-        firm=selected_firm,
-        period_year=current_year,
-        period_month=current_month
-    ).aggregate(total=Sum('total_co2e'))['total'] or 0
-    
-    scope3_current = Scope3Data.objects.filter(
-        firm=selected_firm,
-        period_year=current_year,
-        period_month=current_month
-    ).aggregate(total=Sum('total_co2e'))['total'] or 0
-    
-    scope4_current = Scope4Data.objects.filter(
-        firm=selected_firm,
-        period_year=current_year,
-        period_month=current_month
-    ).aggregate(total=Sum('total_co2e'))['total'] or 0
-    
-    total_current = scope1_current + scope2_current + scope3_current + scope4_current
-    
-    # Önceki ay toplamları (karşılaştırma için)
-    scope1_prev = Scope1Data.objects.filter(
-        firm=selected_firm,
-        period_year=prev_year,
-        period_month=prev_month
-    ).aggregate(total=Sum('total_co2e'))['total'] or 0
-    
-    scope2_prev = Scope2Data.objects.filter(
-        firm=selected_firm,
-        period_year=prev_year,
-        period_month=prev_month
-    ).aggregate(total=Sum('total_co2e'))['total'] or 0
-    
-    scope3_prev = Scope3Data.objects.filter(
-        firm=selected_firm,
-        period_year=prev_year,
-        period_month=prev_month
-    ).aggregate(total=Sum('total_co2e'))['total'] or 0
-    
-    scope4_prev = Scope4Data.objects.filter(
-        firm=selected_firm,
-        period_year=prev_year,
-        period_month=prev_month
-    ).aggregate(total=Sum('total_co2e'))['total'] or 0
-    
-    total_prev = scope1_prev + scope2_prev + scope3_prev + scope4_prev
-    
-    # Değişim hesaplama
-    if total_prev > 0:
-        emission_change = ((total_current - total_prev) / total_prev) * 100
-    else:
-        emission_change = 0
-    
-    # Yüzde hesaplamaları
-    if total_current > 0:
-        scope1_percentage = (scope1_current / total_current) * 100
-        scope2_percentage = (scope2_current / total_current) * 100
-        scope3_percentage = (scope3_current / total_current) * 100
-        scope4_percentage = (scope4_current / total_current) * 100
-    else:
-        scope1_percentage = scope2_percentage = scope3_percentage = scope4_percentage = 0
-    
-    # Son 6 aylık trend verisi (grafik için)
-    chart_labels = []
-    scope1_data = []
-    scope2_data = []
-    scope3_data = []
-    scope4_data = []
-    
-    for i in range(5, -1, -1):
-        target_date = current_date - timedelta(days=i*30)
-        month_year = target_date.strftime("%B %Y")
-        chart_labels.append(month_year)
-        
-        # Her ay için toplamları al
-        s1 = Scope1Data.objects.filter(
-            firm=selected_firm,
-            period_year=target_date.year,
-            period_month=target_date.month
-        ).aggregate(total=Sum('total_co2e'))['total'] or 0
-        
-        s2 = Scope2Data.objects.filter(
-            firm=selected_firm,
-            period_year=target_date.year,
-            period_month=target_date.month
-        ).aggregate(total=Sum('total_co2e'))['total'] or 0
-        
-        s3 = Scope3Data.objects.filter(
-            firm=selected_firm,
-            period_year=target_date.year,
-            period_month=target_date.month
-        ).aggregate(total=Sum('total_co2e'))['total'] or 0
-        
-        s4 = Scope4Data.objects.filter(
-            firm=selected_firm,
-            period_year=target_date.year,
-            period_month=target_date.month
-        ).aggregate(total=Sum('total_co2e'))['total'] or 0
-        
-        scope1_data.append(float(s1))
-        scope2_data.append(float(s2))
-        scope3_data.append(float(s3))
-        scope4_data.append(float(s4))
-    
-    # Son veri girişleri
-    recent_entries = []
-    
-    # Scope 1 girişleri
-    for entry in Scope1Data.objects.filter(firm=selected_firm).order_by('-created_at')[:3]:
-        recent_entries.append({
-            'created_at': entry.created_at,
-            'scope': 'Kapsam 1',
-            'location': entry.location,
-            'value': entry.consumption_value,
-            'unit': entry.consumption_unit,
-            'co2e': entry.total_co2e,
-            'edit_url': f"/carbon/scope1/{entry.pk}/update/"
-        })
-    
-    # Scope 2 girişleri
-    for entry in Scope2Data.objects.filter(firm=selected_firm).order_by('-created_at')[:3]:
-        recent_entries.append({
-            'created_at': entry.created_at,
-            'scope': 'Kapsam 2',
-            'location': entry.location,
-            'value': entry.electricity_kwh,
-            'unit': 'kWh',
-            'co2e': entry.total_co2e,
-            'edit_url': f"/carbon/scope2/{entry.pk}/update/"
-        })
-    
-    # Girişleri tarihe göre sırala
-    recent_entries.sort(key=lambda x: x['created_at'], reverse=True)
-    recent_entries = recent_entries[:10]  # Son 10 giriş
-    
-    # Son raporlar
-    recent_reports = Report.objects.filter(firm=selected_firm).order_by('-report_date')[:5]
-    
-    # Context'e ekle
-    context.update({
-        'total_emissions': total_current,
-        'emission_change': emission_change,
-        'scope1_total': scope1_current,
-        'scope2_total': scope2_current,
-        'scope3_total': scope3_current,
-        'scope4_total': scope4_current,
-        'scope1_percentage': scope1_percentage,
-        'scope2_percentage': scope2_percentage,
-        'scope3_percentage': scope3_percentage,
-        'scope4_percentage': scope4_percentage,
-        'data_completeness': 85,  # Örnek değer
-        'pending_entries': 3,  # Örnek değer
-        'chart_labels': json.dumps(chart_labels),
-        'scope1_data': json.dumps(scope1_data),
-        'scope2_data': json.dumps(scope2_data),
-        'scope3_data': json.dumps(scope3_data),
-        'scope4_data': json.dumps(scope4_data),
-        'recent_entries': recent_entries,
-        'recent_reports': recent_reports,
-    })
-    
-    return render(request, 'carbon/dashboard.html', context)
-
 # TOPLU VERİ YÜKLEME
 @login_required
 @permission_required('carbon.add_inputdata', raise_exception=True)
@@ -1296,7 +1057,6 @@ def management_list_view(request):
     
     return render(request, 'carbon/management_list.html', context)
 
-
 @login_required
 @permission_required('carbon.add_emissionfactor', raise_exception=True)
 def emissionfactor_create_view(request):
@@ -1349,206 +1109,6 @@ def emissionfactor_delete_view(request, pk):
     return render(request, 'carbon/emissionfactor_confirm_delete.html', {
         'factor': factor
     })
-
-# YAKIT TÜRÜ VIEW'LARI
-@login_required
-@permission_required('carbon.add_fueltype', raise_exception=True)
-def fueltype_create_view(request):
-    """Yakıt türü oluşturma"""
-    if request.method == 'POST':
-        form = FuelTypeForm(request.POST)
-        if form.is_valid():
-            form.save()
-            messages.success(request, "Yakıt türü başarıyla oluşturuldu.")
-            return redirect('carbon:management-list')
-    else:
-        form = FuelTypeForm()
-    
-    return render(request, 'carbon/fueltype_form.html', {
-        'form': form,
-        'title': 'Yeni Yakıt Türü'
-    })
-
-@login_required
-@permission_required('carbon.change_fueltype', raise_exception=True)
-def fueltype_update_view(request, pk):
-    """Yakıt türü güncelleme"""
-    fuel_type = get_object_or_404(FuelType, pk=pk)
-    
-    if request.method == 'POST':
-        form = FuelTypeForm(request.POST, instance=fuel_type)
-        if form.is_valid():
-            form.save()
-            messages.success(request, "Yakıt türü güncellendi.")
-            return redirect('carbon:management-list')
-    else:
-        form = FuelTypeForm(instance=fuel_type)
-    
-    return render(request, 'carbon/fueltype_form.html', {
-        'form': form,
-        'title': 'Yakıt Türü Güncelle'
-    })
-
-@login_required
-@permission_required('carbon.delete_fueltype', raise_exception=True)
-def fueltype_delete_view(request, pk):
-    """Yakıt türü silme"""
-    fuel_type = get_object_or_404(FuelType, pk=pk)
-    
-    if request.method == 'POST':
-        fuel_type.delete()
-        messages.success(request, "Yakıt türü silindi.")
-        return redirect('carbon:management-list')
-    
-    return render(request, 'carbon/fueltype_confirm_delete.html', {
-        'fuel_type': fuel_type
-    })
-
-
-@login_required
-@permission_required('carbon.view_report_carbon', raise_exception=True)
-def report_generate_view(request):
-    """Anlık karbon raporu oluştur (kaydetmeden)"""
-    
-    if request.method == 'POST':
-        form = ReportForm(request.POST, user=request.user)
-        if form.is_valid():
-            firm = form.cleaned_data['firm']
-            report_date = form.cleaned_data['report_date']
-            
-            # Rapor dönemini belirle (son 1 yıl)
-            report_period_end = report_date
-            report_period_start = report_date - timedelta(days=365)
-            
-            # Verileri topla (veritabanından)
-            scope1_data = Scope1Data.objects.filter(
-                firm=firm,
-                period_year__gte=report_period_start.year,
-                period_year__lte=report_period_end.year
-            ).aggregate(
-                total=Sum('total_co2e')
-            )['total'] or 0
-            
-            scope2_data = Scope2Data.objects.filter(
-                firm=firm,
-                period_year__gte=report_period_start.year,
-                period_year__lte=report_period_end.year
-            ).aggregate(
-                total=Sum('total_co2e')
-            )['total'] or 0
-            
-            scope3_data = Scope3Data.objects.filter(
-                firm=firm,
-                period_year__gte=report_period_start.year,
-                period_year__lte=report_period_end.year
-            ).aggregate(
-                total=Sum('total_co2e')
-            )['total'] or 0
-            
-            scope4_data = Scope4Data.objects.filter(
-                firm=firm,
-                period_year__gte=report_period_start.year,
-                period_year__lte=report_period_end.year
-            ).aggregate(
-                total=Sum('total_co2e')
-            )['total'] or 0
-            
-            # Toplam emisyon
-            total_emission = scope1_data + scope2_data + scope3_data + scope4_data
-            
-            # Direct (Kapsam 1) ve Indirect (Kapsam 2+3) oranları
-            direct_emissions = scope1_data
-            indirect_emissions = scope2_data + scope3_data + scope4_data
-            
-            if total_emission > 0:
-                direct_ratio = (direct_emissions / total_emission) * 100
-                indirect_ratio = (indirect_emissions / total_emission) * 100
-            else:
-                direct_ratio = 0
-                indirect_ratio = 0
-            
-            # Rapor verilerini hazırla (kaydetmeden)
-            report_data = {
-                'firm': firm,
-                'report_date': report_date,
-                'report_period_start': report_period_start,
-                'report_period_end': report_period_end,
-                'scope1_total': scope1_data,
-                'scope2_total': scope2_data,
-                'scope3_total': scope3_data,
-                'scope4_total': scope4_data,
-                'total_emission': total_emission,
-                'direct_ratio': direct_ratio,
-                'indirect_ratio': indirect_ratio,
-            }
-            
-            # Excel'e aktar düğmesine basıldıysa
-            if 'export_excel' in request.POST:
-                return export_report_to_excel(report_data)
-            
-            # Raporu göster
-            return render(request, 'carbon/report_display.html', {
-                'report': report_data,
-                'form': form
-            })
-    else:
-        form = ReportForm(user=request.user)
-    
-    return render(request, 'carbon/report_generate.html', {
-        'form': form
-    })
-
-
-def export_report_to_excel(report_data):
-    """Raporu Excel'e aktar"""
-    output = BytesIO()
-    
-    # Excel writer oluştur
-    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        # Özet sayfası
-        summary_data = {
-            'Bilgi': ['Firma', 'Rapor Tarihi', 'Dönem Başlangıç', 'Dönem Bitiş'],
-            'Değer': [
-                report_data['firm'].name,
-                report_data['report_date'].strftime('%d.%m.%Y'),
-                report_data['report_period_start'].strftime('%d.%m.%Y'),
-                report_data['report_period_end'].strftime('%d.%m.%Y')
-            ]
-        }
-        df_summary = pd.DataFrame(summary_data)
-        df_summary.to_excel(writer, sheet_name='Özet', index=False)
-        
-        # Emisyon verileri
-        emissions_data = {
-            'Kapsam': ['Kapsam 1', 'Kapsam 2', 'Kapsam 3', 'Kapsam 4', 'TOPLAM'],
-            'Emisyon (tCO2e)': [
-                report_data['scope1_total'],
-                report_data['scope2_total'],
-                report_data['scope3_total'],
-                report_data['scope4_total'],
-                report_data['total_emission']
-            ],
-            'Oran (%)': [
-                report_data['scope1_total'] / report_data['total_emission'] * 100 if report_data['total_emission'] > 0 else 0,
-                report_data['scope2_total'] / report_data['total_emission'] * 100 if report_data['total_emission'] > 0 else 0,
-                report_data['scope3_total'] / report_data['total_emission'] * 100 if report_data['total_emission'] > 0 else 0,
-                report_data['scope4_total'] / report_data['total_emission'] * 100 if report_data['total_emission'] > 0 else 0,
-                100 if report_data['total_emission'] > 0 else 0
-            ]
-        }
-        df_emissions = pd.DataFrame(emissions_data)
-        df_emissions.to_excel(writer, sheet_name='Emisyonlar', index=False)
-    
-    # Excel dosyasını indir
-    output.seek(0)
-    response = HttpResponse(
-        output.read(),
-        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    )
-    filename = f"Karbon_Raporu_{report_data['firm'].name}_{report_data['report_date'].strftime('%Y%m%d')}.xlsx"
-    response['Content-Disposition'] = f'attachment; filename={filename}'
-    
-    return response
 
 @login_required
 @permission_required('carbon.add_report', raise_exception=True)
@@ -1633,22 +1193,6 @@ def report_generate_view(request):
 
 @login_required
 @permission_required('carbon.view_report', raise_exception=True)
-def report_detail_view(request, pk):
-    """Rapor detayı"""
-    report = get_object_or_404(Report, pk=pk)
-    
-    # Yetki kontrolü
-    if hasattr(request.user, 'user'):
-        user_firms = Firm.objects.filter(user_associations__user=request.user.user)
-        if report.firm not in user_firms:
-            raise PermissionDenied
-    
-    return render(request, 'carbon/report_detail.html', {
-        'report': report
-    })
-
-@login_required
-@permission_required('carbon.view_report', raise_exception=True)
 def report_download_view(request, pk):
     """Raporu indir"""
     report = get_object_or_404(Report, pk=pk)
@@ -1706,23 +1250,10 @@ def api_chart_data(request):
         'datasets': []
     })
 
-
 @login_required
 def dashboard_view(request):
     """Basit dashboard view"""
     return render(request, 'carbon/dashboard.html', {})
-
-@login_required
-def download_template_view(request, scope):
-    """Excel şablon indirme - şimdilik boş"""
-    messages.info(request, "Bu özellik henüz hazır değil.")
-    return redirect('carbon:management-list')
-
-@login_required
-def bulk_upload_view(request):
-    """Toplu veri yükleme - şimdilik boş"""
-    messages.info(request, "Bu özellik henüz hazır değil.")
-    return redirect('carbon:management-list')
 
 @login_required
 def fueltype_create_view(request):
@@ -1735,28 +1266,6 @@ def fueltype_update_view(request, pk):
 @login_required
 def fueltype_delete_view(request, pk):
     return redirect('carbon:management-list')
-
-# API view'ları
-@login_required
-def api_calculate_emission(request):
-    from django.http import JsonResponse
-    return JsonResponse({'status': 'not implemented'})
-
-@login_required
-def api_get_fuel_factors(request, fuel_id):
-    from django.http import JsonResponse
-    return JsonResponse({'status': 'not implemented'})
-
-@login_required
-def api_chart_data(request):
-    from django.http import JsonResponse
-    return JsonResponse({'status': 'not implemented'})
-
-@login_required
-def report_download_view(request, pk):
-    messages.info(request, "İndirme özelliği henüz hazır değil.")
-    return redirect('carbon:report-list')
-
 
 @login_required
 @permission_required('carbon.view_input_carbon', raise_exception=True)
@@ -1787,66 +1296,3 @@ def report_list_view(request):
     }
     
     return render(request, 'carbon/report.html', context)
-
-
-@login_required
-def excel_report_view(request):
-    """Excel formatında karbon raporu görüntüleme"""
-    
-    # Firma seç
-    if request.user.is_superuser:
-        firms = Firm.objects.all()
-    else:
-        if hasattr(request.user, 'user'):
-            firms = Firm.objects.filter(user_associations__user=request.user.user)
-        else:
-            firms = Firm.objects.none()
-    
-    selected_firm_id = request.GET.get('firm_id')
-    selected_firm = None
-    report = None
-    scope1_data = None
-    scope2_data = None
-    scope4_data = None
-    
-    if selected_firm_id:
-        selected_firm = get_object_or_404(Firm, pk=selected_firm_id)
-        
-        # Rapor getir veya oluştur
-        year = int(request.GET.get('year', 2025))
-        month = int(request.GET.get('month', 1))
-        
-        report = ExcelReport.objects.filter(
-            firm=selected_firm,
-            year=year,
-            month=month
-        ).first()
-        
-        if report:
-            # Kapsam detaylarını getir
-            scope1_data = Scope1Excel.objects.filter(
-                firm=selected_firm,
-                year=year,
-                month=month
-            )
-            scope2_data = Scope2Excel.objects.filter(
-                firm=selected_firm,
-                year=year,
-                month=month
-            )
-            scope4_data = Scope4Excel.objects.filter(
-                firm=selected_firm,
-                year=year,
-                month=month
-            )
-    
-    context = {
-        'firms': firms,
-        'selected_firm': selected_firm,
-        'report': report,
-        'scope1_data': scope1_data,
-        'scope2_data': scope2_data,
-        'scope4_data': scope4_data,
-    }
-    
-    return render(request, 'carbon/excel_report.html', context)
