@@ -32,13 +32,17 @@
             </div>
             
             <div style="flex: 1; min-width: 150px;">
-                <label for="baslangic-tarih">Başlangıç:</label>
-                <input type="date" name="valid_from" id="baslangic-tarih" value="{{ selected_valid_from }}" style="width: 100%; padding: 8px;">
+                <label for="filter-valid-from">Geçerlilik Başlangıcı:</label>
+                <input type="date" name="valid_from" id="filter-valid-from" 
+                    value="{{ selected_valid_from }}" 
+                    style="width: 100%; padding: 8px;">
             </div>
-            
+
             <div style="flex: 1; min-width: 150px;">
-                <label for="bitis-tarih">Bitiş:</label>
-                <input type="date" name="valid_to" id="bitis-tarih" value="{{ selected_valid_to }}" style="width: 100%; padding: 8px;">
+                <label for="filter-valid-to">Geçerlilik Bitişi:</label>
+                <input type="date" name="valid_to" id="filter-valid-to" 
+                    value="{{ selected_valid_to }}" 
+                    style="width: 100%; padding: 8px;">
             </div>
             
             <div style="flex: 0;">

@@ -38,7 +38,19 @@
                     {% endfor %}
                 </select>
             </div>
-            
+            <div style="flex: 1; min-width: 150px;">
+                <label for="filter-valid-from">Başlangıç Tarihi:</label>
+                <input type="date" name="valid_from" id="filter-valid-from" 
+                    value="{{ selected_valid_from }}" 
+                    style="width: 100%; padding: 8px;">
+            </div>
+
+            <div style="flex: 1; min-width: 150px;">
+                <label for="filter-valid-to">Bitiş Tarihi:</label>
+                <input type="date" name="valid_to" id="filter-valid-to" 
+                    value="{{ selected_valid_to }}" 
+                    style="width: 100%; padding: 8px;">
+            </div>
             <div style="flex: 1; min-width: 150px;">
                 <label for="filter-name">İsim:</label>
                 <input type="text" name="name" id="filter-name" value="{{ name_search }}" 
