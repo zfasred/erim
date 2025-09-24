@@ -3,14 +3,57 @@ from django import forms
 from django.core.exceptions import ValidationError
 from datetime import date
 from .models import (
-    GWPValues,
     DynamicCarbonInput, 
     SubScope,
     ExcelReport,
-    CarbonCoefficient, CoefficientType, EmissionFactor, FuelType,
-    InputCategory, InputData
+    CarbonCoefficient,
+    GWPValues,
+    FuelType
 )
 from core.models import User as CoreUser, Firm
+
+
+class DynamicCarbonInputForm(forms.ModelForm):
+    """Dinamik karbon veri girişi formu"""
+    
+    class Meta:
+        model = DynamicCarbonInput
+        fields = ['firm', 'datetime', 'scope', 'subscope', 'data']
+        widgets = {
+            'datetime': forms.DateTimeInput(attrs={'type': 'datetime-local'}),
+            'data': forms.Textarea(attrs={'rows': 4}),
+        }
+        labels = {
+            'firm': 'Firma',
+            'datetime': 'Tarih/Saat',
+            'scope': 'Kapsam',
+            'subscope': 'Alt Kapsam',
+            'data': 'Veri (JSON)',
+        }
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        
+        # Alt kapsam seçeneklerini scope'a göre filtrele
+        if self.data.get('scope'):
+            scope = self.data.get('scope')
+            self.fields['subscope'].queryset = SubScope.objects.filter(scope=scope)
+        elif self.instance.pk:
+            self.fields['subscope'].queryset = SubScope.objects.filter(scope=self.instance.scope)
+    
+    def clean_data(self):
+        """JSON veriyi doğrula"""
+        import json
+        data = self.cleaned_data.get('data')
+        
+        if isinstance(data, str):
+            try:
+                data = json.loads(data)
+            except json.JSONDecodeError:
+                raise ValidationError("Geçersiz JSON formatı")
+        
+        return data
+
 
 class CarbonCoefficientForm(forms.ModelForm):
     """Karbon katsayıları için form"""
@@ -54,127 +97,72 @@ class CarbonCoefficientForm(forms.ModelForm):
         
         # Alt kapsam seçeneklerini ayarla
         if self.data.get('scope'):
-            # POST request'te scope var ise (form gönderilmiş)
             scope = self.data.get('scope')
             subscope_choices = [('', '-- Alt Kapsam Seçin --')]
             for code, label in CarbonCoefficient.SUBSCOPE_CHOICES:
                 if code.startswith(scope + '.'):
                     subscope_choices.append((code, label))
             self.fields['subscope'].choices = subscope_choices
-            
-        elif self.instance and self.instance.pk:
-            if self.instance.valid_from:
-                self.initial['valid_from'] = self.instance.valid_from.strftime('%Y-%m-%d')
-            if self.instance.valid_to:
-                self.initial['valid_to'] = self.instance.valid_to.strftime('%Y-%m-%d')
-            # Düzenleme modunda
+        elif self.instance.pk:
             scope = self.instance.scope
-            subscope_choices = []
+            subscope_choices = [('', '-- Alt Kapsam Seçin --')]
             for code, label in CarbonCoefficient.SUBSCOPE_CHOICES:
                 if code.startswith(scope + '.'):
                     subscope_choices.append((code, label))
             self.fields['subscope'].choices = subscope_choices
-            
-        else:
-            # Yeni kayıt modunda ve GET request
-            self.fields['subscope'].choices = [('', '-- Önce Kapsam Seçin --')]
-        
-        # Katsayı türü seçeneklerini ayarla (isteğe bağlı - daha iyi UX için)
-        if self.data.get('subscope') or (self.instance and self.instance.subscope):
-            subscope = self.data.get('subscope') if self.data.get('subscope') else self.instance.subscope
-            
-            coefficient_types_map = {
-                '1.1': ['EF_CO2', 'EF_CH4', 'EF_N2O', 'NKD', 'YOGUNLUK_KG_M3'],
-                '1.2': ['EF_CO2', 'EF_CH4', 'EF_N2O', 'NKD', 'YOGUNLUK_TON_LT'],
-                '1.3': ['EF_CO2', 'EF_CH4', 'EF_N2O', 'NKD'],
-                '1.4': ['EF_CO2', 'EF_CH4', 'EF_N2O', 'NKD'],
-                '1.5': ['EF_CO2', 'EF_CH4', 'EF_N2O', 'NKD'],
-                '2.1': ['EF_TCO2_MWH'],
-                '3.1': ['EF_CO2', 'EF_CH4', 'EF_N2O', 'NKD', 'YOGUNLUK_KG_LT'],
-                '3.2': ['EF_CO2', 'EF_CH4', 'EF_N2O', 'NKD', 'YOGUNLUK_KG_LT'],
-                '3.3': ['EF_CO2', 'EF_CH4', 'EF_N2O', 'NKD', 'YOGUNLUK_KG_LT'],
-                '3.4': ['EF_CO2', 'EF_CH4', 'EF_N2O', 'NKD', 'YOGUNLUK_TON_LT'],
-                '3.5': ['EF_CO2', 'EF_CH4', 'EF_N2O', 'NKD', 'YOGUNLUK_KG_LT', 'YOGUNLUK_TON_LT', 'EF_KG_CO2E_ODA'],
-                '4.1': ['EF_KG_CO2_KG'],
-                '4.2': ['EF_KG_CO2_KG', 'EF_TCO2E_KG'],
-                '4.3': ['EF_KG_CO2E_KWH', 'EF_KG_CO2E_M3', 'EF_KG_CO2_TON', 'EF_KG_CO2_M3', 'EF_CO2', 'EF_CH4', 'EF_N2O', 'NKD', 'YOGUNLUK_TON_LT'],
-            }
-            
-            if subscope in coefficient_types_map:
-                allowed_types = coefficient_types_map[subscope]
-                coefficient_choices = []
-                for code, label in CarbonCoefficient.COEFFICIENT_TYPE_CHOICES:
-                    if code in allowed_types:
-                        coefficient_choices.append((code, label))
-                self.fields['coefficient_type'].choices = coefficient_choices
 
 
-# Mevcut formlarınız
 class UserFirmAccessForm(forms.Form):
+    """Kullanıcı-Firma ilişkisi formu"""
     user = forms.ModelChoiceField(
-        queryset=CoreUser.objects.all().order_by('username'), 
-        label="Kullanıcı Seçin"
+        queryset=CoreUser.objects.all(),
+        label="Kullanıcı Seçin",
+        widget=forms.Select(attrs={'class': 'form-control'})
     )
     firm = forms.ModelChoiceField(
-        queryset=Firm.objects.all().order_by('name'), 
-        label="Firma Seçin"
+        queryset=Firm.objects.all(),
+        label="Firma Seçin",
+        widget=forms.Select(attrs={'class': 'form-control'})
     )
 
-class CoefficientTypeForm(forms.ModelForm):
-    class Meta:
-        model = CoefficientType
-        fields = ['name', 'unit', 'description']
-        widgets = {
-            'description': forms.Textarea(attrs={'rows': 3}),
-        }
 
-class EmissionFactorForm(forms.ModelForm):
-    class Meta:
-        model = EmissionFactor
-        fields = ['type', 'name', 'category', 'subcategory', 'value', 'unit', 'source', 'valid_from', 'valid_to', 'notes']
-        widgets = {
-            'valid_from': forms.DateInput(format='%Y-%m-%d', attrs={'type': 'date'}),
-            'valid_to': forms.DateInput(format='%Y-%m-%d', attrs={'type': 'date'}),
-            'notes': forms.Textarea(attrs={'rows': 3}),
-        }
+class ReportGenerateForm(forms.Form):
+    """Rapor oluşturma formu"""
+    firm = forms.ModelChoiceField(
+        queryset=Firm.objects.all(),
+        label="Firma",
+        required=True
+    )
+    start_date = forms.DateField(
+        label="Başlangıç Tarihi",
+        widget=forms.DateInput(attrs={'type': 'date'}),
+        required=True
+    )
+    end_date = forms.DateField(
+        label="Bitiş Tarihi", 
+        widget=forms.DateInput(attrs={'type': 'date'}),
+        required=True
+    )
     
     def clean(self):
         cleaned_data = super().clean()
-        valid_from = cleaned_data.get('valid_from')
-        valid_to = cleaned_data.get('valid_to')
+        start_date = cleaned_data.get('start_date')
+        end_date = cleaned_data.get('end_date')
         
-        if valid_from and valid_to:
-            if valid_to <= valid_from:
-                raise ValidationError("Geçerlilik bitiş tarihi başlangıç tarihinden sonra olmalıdır.")
+        if start_date and end_date:
+            if start_date > end_date:
+                raise ValidationError("Başlangıç tarihi bitiş tarihinden sonra olamaz.")
         
         return cleaned_data
 
-# Yeni formlar
-class FuelTypeForm(forms.ModelForm):
-    class Meta:
-        model = FuelType
-        fields = ['code', 'name', 'category', 'ncv', 'ef_co2', 'ef_ch4', 'ef_n2o', 
-                 'valid_from', 'valid_to', 'source', 'notes']
-        widgets = {
-            'valid_from': forms.DateInput(format='%Y-%m-%d', attrs={'type': 'date'}),
-            'valid_to': forms.DateInput(format='%Y-%m-%d', attrs={'type': 'date'}),
-            'notes': forms.Textarea(attrs={'rows': 3}),
-        }
-        labels = {
-            'ncv': 'Net Kalorifik Değer (TJ/Gg)',
-            'ef_co2': 'CO2 Emisyon Faktörü (kgCO2/TJ)',
-            'ef_ch4': 'CH4 Emisyon Faktörü (kgCH4/TJ)',
-            'ef_n2o': 'N2O Emisyon Faktörü (kgN2O/TJ)',
-        }
 
-
-# Toplu veri yükleme formu
 class BulkUploadForm(forms.Form):
+    """Toplu veri yükleme formu"""
     SCOPE_CHOICES = [
-        ('scope1', 'Kapsam 1 - Doğrudan Emisyonlar'),
-        ('scope2', 'Kapsam 2 - Elektrik'),
-        ('scope3', 'Kapsam 3 - Ulaşım'),
-        ('scope4', 'Kapsam 4 - Satın Alınan Ürünler'),
+        ('1', 'Kapsam 1 - Doğrudan Emisyonlar'),
+        ('2', 'Kapsam 2 - Elektrik'),
+        ('3', 'Kapsam 3 - Ulaşım'),
+        ('4', 'Kapsam 4 - Satın Alınan Ürünler'),
     ]
     
     scope = forms.ChoiceField(choices=SCOPE_CHOICES, label="Kapsam Seçin")
@@ -195,32 +183,59 @@ class BulkUploadForm(forms.Form):
         
         return file
 
-# Rapor oluşturma formu
-class ReportGenerateForm(forms.Form):
-    firm = forms.ModelChoiceField(
-        queryset=Firm.objects.all(),
-        label="Firma",
-        required=True
-    )
-    start_date = forms.DateField(
-        label="Başlangıç Tarihi",
-        widget=forms.DateInput(attrs={'type': 'date'}),
-        required=True
-    )
-    end_date = forms.DateField(
-        label="Bitiş Tarihi", 
-        widget=forms.DateInput(attrs={'type': 'date'}),
-        required=True
-    )
 
-# Mevcut formlarınız (backward compatibility için)
-class InputCategoryForm(forms.ModelForm):
+class ExcelReportForm(forms.ModelForm):
+    """Excel raporu oluşturma formu"""
+    
     class Meta:
-        model = InputCategory
-        fields = ['name', 'scope']
+        model = ExcelReport
+        fields = ['firm', 'year', 'month', 'notes']
+        widgets = {
+            'month': forms.Select(choices=[(i, i) for i in range(1, 13)]),
+            'year': forms.NumberInput(attrs={'min': 2020, 'max': 2050}),
+            'notes': forms.Textarea(attrs={'rows': 3}),
+        }
+        labels = {
+            'firm': 'Firma',
+            'year': 'Yıl',
+            'month': 'Ay (Boş bırakılırsa yıllık rapor)',
+            'notes': 'Notlar',
+        }
 
 
-class ReportForm(forms.Form):  # ModelForm değil, normal Form
+class FuelTypeForm(forms.ModelForm):
+    """Yakıt türü formu"""
+    
+    class Meta:
+        model = FuelType
+        fields = ['code', 'name', 'category', 'ncv', 'ef_co2', 'ef_ch4', 'ef_n2o', 
+                 'density', 'unit', 'valid_from', 'valid_to', 'source', 'notes']
+        widgets = {
+            'valid_from': forms.DateInput(format='%Y-%m-%d', attrs={'type': 'date'}),
+            'valid_to': forms.DateInput(format='%Y-%m-%d', attrs={'type': 'date'}),
+            'notes': forms.Textarea(attrs={'rows': 3}),
+        }
+        labels = {
+            'ncv': 'Net Kalorifik Değer (TJ/Gg)',
+            'ef_co2': 'CO2 Emisyon Faktörü (kgCO2/TJ)',
+            'ef_ch4': 'CH4 Emisyon Faktörü (kgCH4/TJ)',
+            'ef_n2o': 'N2O Emisyon Faktörü (kgN2O/TJ)',
+        }
+
+
+class GWPValuesForm(forms.ModelForm):
+    """GWP değerleri formu"""
+    
+    class Meta:
+        model = GWPValues
+        fields = ['ch4_gwp', 'n2o_gwp', 'valid_from', 'source']
+        widgets = {
+            'valid_from': forms.DateInput(format='%Y-%m-%d', attrs={'type': 'date'}),
+        }
+
+
+class ReportForm(forms.Form):
+    """Eski rapor formu - backward compatibility"""
     firm = forms.ModelChoiceField(
         queryset=Firm.objects.all(),
         label="Firma Seçin",
@@ -229,7 +244,7 @@ class ReportForm(forms.Form):  # ModelForm değil, normal Form
     report_date = forms.DateField(
         label="Rapor Tarihi",
         widget=forms.DateInput(attrs={'type': 'date'}),
-        initial=date.today,  # Varsayılan olarak bugün
+        initial=date.today,
         required=True
     )
     
@@ -237,7 +252,6 @@ class ReportForm(forms.Form):  # ModelForm değil, normal Form
         user = kwargs.pop('user', None)
         super().__init__(*args, **kwargs)
         
-        # Kullanıcının erişebileceği firmaları filtrele
         if user and not user.is_superuser:
             if hasattr(user, 'user'):
                 self.fields['firm'].queryset = Firm.objects.filter(

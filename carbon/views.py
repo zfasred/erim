@@ -11,13 +11,27 @@ from django.views.decorators.http import require_http_methods
 from datetime import datetime, timedelta
 from decimal import Decimal, ROUND_HALF_UP
 import json
+import pandas as pd
 
 from .models import (
-    CarbonCoefficient, CoefficientType, EmissionFactor, InputCategory, InputData, GWPValues, ExcelReport, DynamicCarbonInput, SubScope
+    DynamicCarbonInput,
+    SubScope,
+    CarbonCoefficient,
+    GWPValues,
+    ExcelReport,
+    FuelType
 )
+
 from .forms import (
-    CarbonCoefficientForm, CoefficientTypeForm, EmissionFactorForm, UserFirmAccessForm, ReportGenerateForm, InputCategoryForm
+    DynamicCarbonInputForm,
+    CarbonCoefficientForm,
+    UserFirmAccessForm,
+    ReportGenerateForm,
+    ExcelReportForm,
+    BulkUploadForm,
+    ReportForm
 )
+
 from core.models import UserFirm, Firm, User
 
 # Diğer view'larda da kullanmak için yardımcı fonksiyon
@@ -697,6 +711,8 @@ def coefficient_list_view(request):
     subscope = request.GET.get('subscope')
     coefficient_type = request.GET.get('coefficient_type')
     name_search = request.GET.get('name')
+    valid_from = request.GET.get('valid_from')  # YENİ
+    valid_to = request.GET.get('valid_to')      # YENİ
     
     # Temel sorgu
     coefficients = CarbonCoefficient.objects.all()
@@ -711,6 +727,24 @@ def coefficient_list_view(request):
     if name_search:
         coefficients = coefficients.filter(name__icontains=name_search)
     
+    # TARİH FİLTRESİ - YENİ EKLENDİ
+    if valid_from and valid_to:
+        # Her iki tarih de girilmişse: Kesişim mantığı
+        from django.db.models import Q
+        coefficients = coefficients.filter(
+            Q(valid_to__gte=valid_from) | Q(valid_to__isnull=True),
+            valid_from__lte=valid_to
+        )
+    elif valid_from:
+        # Sadece başlangıç tarihi girilmişse
+        from django.db.models import Q
+        coefficients = coefficients.filter(
+            Q(valid_to__gte=valid_from) | Q(valid_to__isnull=True)
+        )
+    elif valid_to:
+        # Sadece bitiş tarihi girilmişse
+        coefficients = coefficients.filter(valid_from__lte=valid_to)
+    
     # Tarihe göre sırala
     coefficients = coefficients.order_by('scope', 'subscope', 'coefficient_type', 'name', '-valid_from')
     
@@ -723,6 +757,8 @@ def coefficient_list_view(request):
         'selected_subscope': subscope,
         'selected_coefficient_type': coefficient_type,
         'name_search': name_search,
+        'selected_valid_from': valid_from,  # YENİ
+        'selected_valid_to': valid_to,      # YENİ
     }
     
     return render(request, 'carbon/coefficient_list.html', context)
@@ -1010,10 +1046,21 @@ def management_list_view(request):
         coefficients = coefficients.filter(scope=scope)
     if subscope:
         coefficients = coefficients.filter(subscope=subscope)
-    if valid_from:
-        coefficients = coefficients.filter(valid_from__gte=valid_from)
-    if valid_to:
-        coefficients = coefficients.filter(valid_to__lte=valid_to)
+    
+    # TARİH FİLTRESİ - DÜZELTME BURADA!
+    if valid_from and valid_to:
+        from django.db.models import Q
+        coefficients = coefficients.filter(
+            Q(valid_to__gte=valid_from) | Q(valid_to__isnull=True),
+            valid_from__lte=valid_to
+        )
+    elif valid_from:
+        from django.db.models import Q
+        coefficients = coefficients.filter(
+            Q(valid_to__gte=valid_from) | Q(valid_to__isnull=True)
+        )
+    elif valid_to:
+        coefficients = coefficients.filter(valid_from__lte=valid_to)
     
     # Tarihe göre sırala
     coefficients = coefficients.order_by('scope', 'subscope', 'coefficient_type', 'name', '-valid_from')
