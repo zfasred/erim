@@ -642,7 +642,7 @@ function generateReport() {
         });
 }
 
-// Summary Kartları Güncelle
+// Özet kartları güncelleme - hassas gösterim
 function updateSummaryCards(data) {
     const scope1 = data.scope_totals?.scope_1 || 0;
     const scope2 = data.scope_totals?.scope_2 || 0;
@@ -650,11 +650,36 @@ function updateSummaryCards(data) {
     const scope4 = data.scope_totals?.scope_4 || 0;
     const total = scope1 + scope2 + scope3 + scope4;
     
-    document.getElementById('scope1-value').textContent = scope1.toFixed(2);
-    document.getElementById('scope2-value').textContent = scope2.toFixed(2);
-    document.getElementById('scope3-value').textContent = scope3.toFixed(2);
-    document.getElementById('total-value').textContent = total.toFixed(2);
+    // Özet kartlar için uygun formatlama
+    document.getElementById('scope1-value').textContent = formatEmissionValue(scope1);
+    document.getElementById('scope2-value').textContent = formatEmissionValue(scope2);
+    document.getElementById('scope3-value').textContent = formatEmissionValue(scope3);
+    document.getElementById('total-value').textContent = formatEmissionValue(total);
+    
+    // Tooltip olarak tam değeri ekle
+    document.getElementById('scope1-value').title = `Tam değer: ${scope1.toFixed(8)} tCO₂e`;
+    document.getElementById('scope2-value').title = `Tam değer: ${scope2.toFixed(8)} tCO₂e`;
+    document.getElementById('scope3-value').title = `Tam değer: ${scope3.toFixed(8)} tCO₂e`;
+    document.getElementById('total-value').title = `Tam değer: ${total.toFixed(8)} tCO₂e`;
 }
+
+// PYTHON TARAFI İÇİN ÖZEL NOT
+// Python tarafında da yuvarlama yapılmamalı!
+/*
+Python kodu için öneriler:
+
+1. Hesaplamalarda Decimal kullanın:
+from decimal import Decimal, ROUND_HALF_UP
+
+co2e_value = Decimal(str(calculated_value))
+# Yuvarlamayı sadece gösterimde yapın, saklamada yapmayın
+
+2. JSON'a gönderirken:
+'co2e': float(co2e_value)  # Tam değeri gönder
+
+3. Veritabanında:
+co2e_total = models.DecimalField(max_digits=20, decimal_places=10)  # Daha fazla hassasiyet
+*/
 
 // Rapor İçeriği Oluştur
 function createReportContent(data, reportType) {
@@ -978,17 +1003,73 @@ function formatValueWithUnit(data, subscope) {
     return { value: displayText, unit: unit || '-' };
 }
 
-// Veri Tablolarını Güncelle - GELİŞTİRİLMİŞ FONKSİYON
+// Geliştirilmiş sayı formatlama fonksiyonu
+function formatEmissionValue(value) {
+    if (value === null || value === undefined || isNaN(value)) {
+        return '0.0000';
+    }
+    
+    const numValue = parseFloat(value);
+    
+    // Çok küçük değerler için özel işlem
+    if (numValue === 0) {
+        return '0.0000';
+    }
+    
+    // 0.001'den küçük değerler için bilimsel gösterim veya daha fazla basamak
+    if (numValue > 0 && numValue < 0.001) {
+        // Seçenek 1: 6 ondalık basamak
+        return numValue.toFixed(6);
+        
+        // Seçenek 2: Bilimsel gösterim (alternatif)
+        // return numValue.toExponential(3);
+    }
+    
+    // 0.001 - 0.01 arası için 4 basamak
+    if (numValue < 0.01) {
+        return numValue.toFixed(4);
+    }
+    
+    // 0.01 - 1 arası için 3 basamak
+    if (numValue < 1) {
+        return numValue.toFixed(3);
+    }
+    
+    // 1 - 100 arası için 2 basamak
+    if (numValue < 100) {
+        return numValue.toFixed(2);
+    }
+    
+    // Büyük sayılar için binlik ayraç ile 2 basamak
+    return numValue.toLocaleString('tr-TR', { 
+        minimumFractionDigits: 2, 
+        maximumFractionDigits: 2 
+    });
+}
+
+// Veri Tablolarını Güncelle fonksiyonunda kullanım
 function updateDataTables(data) {
     const container = document.getElementById('data-tables-container');
     let html = '';
     
-    // Her kapsam için tablo oluştur
+    // Toplam ve detay hesaplamaları için daha hassas yaklaşım
+    let grandTotal = 0;
+    const scopeTotalsDetailed = {};
+    
     for (const [scope, scopeData] of Object.entries(data.scope_details || {})) {
         const scopeNumber = scope.replace('scope_', '');
+        let scopeSubtotal = 0;
+        
         html += `<h4 class="mt-4 mb-2">Kapsam ${scopeNumber} Detayları</h4>`;
         html += '<table class="data-table">';
-        html += '<thead><tr><th>Alt Kapsam</th><th>Tarih</th><th>Açıklama</th><th>Değer</th><th>Birim</th><th>Emisyon (tCO₂e)</th></tr></thead>';
+        html += '<thead><tr>';
+        html += '<th>Alt Kapsam</th>';
+        html += '<th>Tarih</th>';
+        html += '<th>Açıklama</th>';
+        html += '<th>Değer</th>';
+        html += '<th>Birim</th>';
+        html += '<th>Emisyon (tCO₂e)</th>';
+        html += '</tr></thead>';
         html += '<tbody>';
         
         for (const [subscope, subscopeData] of Object.entries(scopeData)) {
@@ -996,35 +1077,25 @@ function updateDataTables(data) {
                 // Değer ve birimi al
                 const formatted = formatValueWithUnit(item.data, subscope);
                 
-                // Açıklama metni oluştur
+                // Açıklama metni
                 let description = subscopeData.name || subscope;
-                
-                // İsim alanlarını ekle
                 if (item.data?.fuel_name) description += ` - ${item.data.fuel_name}`;
                 else if (item.data?.facility_name) description += ` - ${item.data.facility_name}`;
                 else if (item.data?.device_name) description += ` - ${item.data.device_name}`;
-                else if (item.data?.process_name) description += ` - ${item.data.process_name}`;
                 else if (item.data?.name) description += ` - ${item.data.name}`;
                 
-                // Gaz ve araç tipi gibi ek bilgiler
-                if (item.data?.gas_name) description += ` (${item.data.gas_name})`;
-                if (item.data?.travel_type) {
-                    const travelTypes = {
-                        'flight': 'Uçak',
-                        'hotel': 'Otel', 
-                        'vehicle': 'Araç'
-                    };
-                    description += ` (${travelTypes[item.data.travel_type] || item.data.travel_type})`;
-                }
-                if (item.data?.service_type) {
-                    const serviceTypes = {
-                        'electricity_loss': 'Elektrik Kayıp-Kaçak',
-                        'water': 'Su Temini',
-                        'wastewater': 'Atıksu',
-                        'solid_waste': 'Katı Atık',
-                        'service': 'Hizmet'
-                    };
-                    description += ` (${serviceTypes[item.data.service_type] || item.data.service_type})`;
+                // Emisyon değerini hassas hesapla
+                const emissionValue = parseFloat(item.co2e) || 0;
+                scopeSubtotal += emissionValue;
+                
+                // Emisyon gösterimi - küçük değerler için özel formatlama
+                let emissionDisplay = formatEmissionValue(emissionValue);
+                
+                // Çok küçük değer uyarısı
+                if (emissionValue > 0 && emissionValue < 0.001) {
+                    emissionDisplay = `<span style="color: #ff6b6b;" title="Çok küçük değer: ${emissionValue.toFixed(8)} tCO₂e">
+                        ${emissionDisplay} *
+                    </span>`;
                 }
                 
                 html += '<tr>';
@@ -1033,27 +1104,31 @@ function updateDataTables(data) {
                 html += `<td>${item.data?.coefficient_set || '-'}</td>`;
                 html += `<td style="text-align: right;">${formatted.value}</td>`;
                 html += `<td>${formatted.unit}</td>`;
-                html += `<td style="text-align: right; font-weight: bold; color: #667eea;">${item.co2e?.toFixed(2) || '0.00'}</td>`;
+                html += `<td style="text-align: right; font-weight: bold; color: #667eea;">${emissionDisplay}</td>`;
                 html += '</tr>';
             });
         }
         
-        // Alt toplam satırı ekle
-        const scopeTotal = data.scope_totals?.[scope] || 0;
+        // Alt toplam satırı - hassas toplam
+        scopeTotalsDetailed[scope] = scopeSubtotal;
+        grandTotal += scopeSubtotal;
+        
         html += '<tr style="background: #f8f9fa; font-weight: bold;">';
         html += `<td colspan="5">Kapsam ${scopeNumber} Toplamı</td>`;
-        html += `<td style="text-align: right; color: #667eea;">${scopeTotal.toFixed(2)}</td>`;
+        html += `<td style="text-align: right; color: #667eea;">
+            ${formatEmissionValue(scopeSubtotal)}
+        </td>`;
         html += '</tr>';
         
         html += '</tbody></table>';
     }
     
-    // Genel toplam tablosu ekle
-    if (Object.keys(data.scope_totals || {}).length > 0) {
-        const total = Object.values(data.scope_totals).reduce((sum, val) => sum + val, 0);
+    // Genel toplam - tam hassasiyetle
+    if (grandTotal > 0) {
         html += `
             <div class="mt-4 p-3" style="background: #667eea; color: white; border-radius: 8px;">
-                <h5 class="mb-0">TOPLAM EMİSYON: ${total.toFixed(2)} tCO₂e</h5>
+                <h5 class="mb-2">TOPLAM EMİSYON: ${formatEmissionValue(grandTotal)} tCO₂e</h5>
+                <small>* işaretli değerler 0.001 tCO₂e'den küçüktür</small>
             </div>
         `;
     }
@@ -1063,6 +1138,10 @@ function updateDataTables(data) {
     }
     
     container.innerHTML = html;
+    
+    // Debug için konsola yaz
+    console.log('Detaylı Emisyon Toplamları:', scopeTotalsDetailed);
+    console.log('Genel Toplam:', grandTotal);
 }
 
 // Excel Export Fonksiyonu - GÜNCELLENDİ
