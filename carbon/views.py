@@ -117,13 +117,130 @@ def api_get_coefficient_names(request):
 
 @login_required
 def api_report_data(request):
-    """Rapor verilerini JSON olarak döndür"""
+    """Rapor verilerini JSON olarak döndür - GERÇEK VERİLER"""
     firm_id = request.GET.get('firm')
     start_date = request.GET.get('start_date')
     end_date = request.GET.get('end_date')
     
     if not firm_id or not start_date or not end_date:
         return JsonResponse({'error': 'Eksik parametre'}, status=400)
+    
+    # Tarih formatını düzenle
+    try:
+        start = datetime.strptime(start_date, '%Y-%m-%d')
+        end = datetime.strptime(end_date, '%Y-%m-%d')
+        # Bitiş tarihine 23:59:59 ekle
+        end = end.replace(hour=23, minute=59, second=59)
+    except ValueError:
+        return JsonResponse({'error': 'Geçersiz tarih formatı'}, status=400)
+    
+    # Yetki kontrolü
+    try:
+        firm = Firm.objects.get(id=firm_id)
+        
+        if not request.user.is_superuser:
+            if hasattr(request.user, 'user'):
+                user_obj = request.user.user
+                if not firm.user_associations.filter(user=user_obj).exists():
+                    return JsonResponse({'error': 'Bu firmaya erişim yetkiniz yok'}, status=403)
+            else:
+                if not firm.user_associations.filter(user=request.user).exists():
+                    return JsonResponse({'error': 'Bu firmaya erişim yetkiniz yok'}, status=403)
+    except Firm.DoesNotExist:
+        return JsonResponse({'error': 'Firma bulunamadı'}, status=404)
+    
+    # DynamicCarbonInput verilerini çek
+    inputs = DynamicCarbonInput.objects.filter(
+        firm_id=firm_id,
+        datetime__range=[start, end]
+    ).select_related('subscope')
+    
+    # Kapsam bazlı gruplama için dictionary
+    scope_totals = {
+        'scope_1': 0,
+        'scope_2': 0,
+        'scope_3': 0,
+        'scope_4': 0
+    }
+    
+    scope_details = {
+        'scope_1': {},
+        'scope_2': {},
+        'scope_3': {},
+        'scope_4': {}
+    }
+    
+    # Her bir girdiyi işle
+    for inp in inputs:
+        scope_key = f"scope_{inp.scope}"
+        subscope_key = inp.subscope.code
+        subscope_name = inp.subscope.name
+        
+        # Alt kapsam yoksa oluştur
+        if subscope_key not in scope_details[scope_key]:
+            scope_details[scope_key][subscope_key] = {
+                'name': subscope_name,
+                'items': [],
+                'total': 0
+            }
+        
+        # CO2e değerini al (zaten hesaplanmış)
+        co2e_value = float(inp.co2e_total) if inp.co2e_total else 0
+        
+        # Detay bilgilerini oluştur
+        item_detail = {
+            'date': inp.datetime.strftime('%d.%m.%Y'),
+            'time': inp.datetime.strftime('%H:%M'),
+            'data': inp.data,
+            'co2e': co2e_value
+        }
+        
+        # Veri tipine göre ek bilgiler ekle
+        if inp.scope == 1 and inp.subscope.code == '1.1':
+            # Sabit Yanma
+            item_detail['fuel_name'] = inp.data.get('coefficient_set', 'Belirtilmemiş')
+            item_detail['value'] = inp.data.get('consumption', 0)
+            item_detail['unit'] = inp.data.get('unit', 'm³')
+        elif inp.scope == 2 and inp.subscope.code == '2.1':
+            # Elektrik
+            item_detail['name'] = 'Elektrik Tüketimi'
+            item_detail['value'] = inp.data.get('consumption', 0)
+            item_detail['unit'] = 'kWh'
+        elif inp.scope == 1 and inp.subscope.code == '1.4':
+            # Kaçak Emisyonlar
+            item_detail['gas_type'] = inp.data.get('gas_type', 'Belirtilmemiş')
+            item_detail['value'] = inp.data.get('quantity', 0)
+            item_detail['unit'] = 'adet'
+        # Diğer kapsam detaylarını ekleyin...
+        
+        # Listeye ekle
+        scope_details[scope_key][subscope_key]['items'].append(item_detail)
+        scope_details[scope_key][subscope_key]['total'] += co2e_value
+        scope_totals[scope_key] += co2e_value
+    
+    # Boş alt kapsamları temizle (isteğe bağlı)
+    for scope_key in scope_details:
+        scope_details[scope_key] = {
+            k: v for k, v in scope_details[scope_key].items() 
+            if v['items']  # Sadece veri olanları tut
+        }
+    
+    # Toplam emisyonu hesapla
+    total_emission = sum(scope_totals.values())
+    
+    response_data = {
+        'scope_totals': scope_totals,
+        'scope_details': scope_details,
+        'total_emission': total_emission,
+        'report_info': {
+            'firm_name': firm.name,
+            'start_date': start_date,
+            'end_date': end_date,
+            'generated_at': datetime.now().isoformat()
+        }
+    }
+    
+    return JsonResponse(response_data)
 
 # Yetki kontrolü
     try:
@@ -659,21 +776,42 @@ def save_report(request):
         
         return JsonResponse({'success': True, 'report_id': report.id})
 
+# Otomatik kaydetme için ek fonksiyon
 @login_required
 def save_draft(request):
-    """Rapor taslağını kaydet"""
+    """Rapor taslağını session'da sakla"""
     if request.method == 'POST':
-        data = json.loads(request.body)
-        
-        # Session'da sakla veya veritabanına kaydet
-        request.session[f'draft_{data["firm_id"]}'] = {
-            'content': data['content'],
-            'saved_at': timezone.now().isoformat()
-        }
-        
-        return JsonResponse({'success': True})
+        try:
+            data = json.loads(request.body)
+            
+            # Session'da sakla
+            draft_key = f'draft_{data.get("firm_id")}'
+            request.session[draft_key] = {
+                'content': data.get('content'),
+                'type': data.get('type', 'draft'),
+                'report_type': data.get('report_type', 'detailed'),
+                'saved_at': timezone.now().isoformat()
+            }
+            
+            # Session'ı kaydet
+            request.session.modified = True
+            
+            return JsonResponse({
+                'success': True,
+                'message': 'Taslak kaydedildi',
+                'saved_at': timezone.now().isoformat()
+            })
+            
+        except Exception as e:
+            return JsonResponse({
+                'success': False,
+                'message': str(e)
+            }, status=400)
     
-    return JsonResponse({'success': False})
+    return JsonResponse({
+        'success': False,
+        'message': 'Sadece POST metodu kabul edilir'
+    }, status=405)
 
 @login_required
 def load_draft(request, firm_id):
