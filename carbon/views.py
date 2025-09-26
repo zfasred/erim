@@ -12,6 +12,7 @@ from datetime import datetime, timedelta
 from decimal import Decimal, ROUND_HALF_UP
 import json
 import pandas as pd
+from datetime import date
 
 from .models import (
     DynamicCarbonInput,
@@ -19,7 +20,8 @@ from .models import (
     CarbonCoefficient,
     GWPValues,
     ExcelReport,
-    FuelType
+    FuelType,
+    Report
 )
 
 from .forms import (
@@ -34,7 +36,53 @@ from .forms import (
 
 from core.models import UserFirm, Firm, User
 
-# Diğer view'larda da kullanmak için yardımcı fonksiyon
+
+@login_required
+def report_editor_view(request, report_id):
+    """Rapor editör sayfası"""
+    # Rapor verilerini çek
+    report = get_object_or_404(Report, id=report_id)
+    
+    context = {
+        'report': report,
+        'company_name': report.firm.name if report.firm else 'Firma Adı',
+    }
+    
+    return render(request, 'carbon/report_editor.html', context)
+
+
+@login_required 
+def get_report_data_ajax(request, report_id):
+    """Rapor verilerini JSON olarak döndür"""
+    report = get_object_or_404(Report, id=report_id)
+    
+    # Burada gerçek verilerinizi hazırlayacaksınız
+    # Şimdilik örnek veri döndürelim
+    data = {
+        'company': report.firm.name if report.firm else 'Firma Adı',
+        'reportDate': report.report_date.strftime('%d.%m.%Y') if report.report_date else '',
+        'reportPeriod': f"{report.period_start.strftime('%B %Y')} - {report.period_end.strftime('%B %Y')}",
+        'scope1': {
+            'total': float(report.scope1_total or 0),
+            'stationary': float(report.scope1_stationary or 0),
+            'mobile': float(report.scope1_mobile or 0),
+        },
+        'scope2': {
+            'total': float(report.scope2_total or 0),
+            'electricity': float(report.scope2_electricity or 0),
+        },
+        'scope3': {
+            'total': float(report.scope3_total or 0),
+        },
+        'scope4': {
+            'total': float(report.scope4_total or 0),
+        },
+        'totalEmission': float(report.total_co2e or 0),
+    }
+    
+    return JsonResponse(data)
+
+
 def get_user_firms(request):
     """Kullanıcının erişebileceği firmaları döndür"""
     if request.user.is_superuser:
@@ -1313,7 +1361,7 @@ def input_list_view(request):
 @login_required
 @permission_required('carbon.view_report_carbon', raise_exception=True)
 def report_list_view(request):
-    """Karbon rapor sayfası"""
+    """Karbon rapor sayfası - ESKİ ÇALIŞAN HALİ"""
     
     # Kullanıcının erişebileceği firmalar
     if request.user.is_superuser:
@@ -1332,4 +1380,32 @@ def report_list_view(request):
         'today': today,
     }
     
-    return render(request, 'carbon/report.html', context)
+    return render(request, 'carbon/report.html', context)  # DİKKAT: report.html kullanılıyor!
+
+@login_required
+def report_create_view(request):
+    """Yeni rapor oluştur - basit örnek verilerle"""
+    if request.method == 'POST':
+        # Basit örnek rapor oluştur
+        firm = Firm.objects.first()  # İlk firmayı al (test için)
+        
+        report = Report.objects.create(
+            firm=firm,
+            report_name=f"Test Raporu - {date.today()}",
+            period_start=date(2025, 1, 1),
+            period_end=date(2025, 12, 31),
+            # Örnek veriler
+            scope1_total=8536.45,
+            scope1_stationary=5234.12,
+            scope1_mobile=3302.33,
+            scope2_total=3516.12,
+            scope2_electricity=3516.12,
+            scope3_total=12450.67,
+            scope4_total=16102.43,
+            total_co2e=40605.67,
+            created_by=request.user if hasattr(request, 'user') else None
+        )
+        
+        return redirect('carbon:report-editor', report_id=report.id)
+    
+    return redirect('carbon:report-list')
