@@ -122,9 +122,24 @@ def api_report_data(request):
     start_date = request.GET.get('start_date')
     end_date = request.GET.get('end_date')
     
-    if not all([firm_id, start_date, end_date]):
-        return JsonResponse({'error': 'Eksik parametreler'}, status=400)
-    
+    if not firm_id or not start_date or not end_date:
+        return JsonResponse({'error': 'Eksik parametre'}, status=400)
+
+# Yetki kontrolü
+    try:
+        firm = Firm.objects.get(id=firm_id)
+        
+        if not request.user.is_superuser:
+            if hasattr(request.user, 'user'):
+                user_obj = request.user.user
+                if not firm.user_associations.filter(user=user_obj).exists():
+                    return JsonResponse({'error': 'Bu firmaya erişim yetkiniz yok'}, status=403)
+            else:
+                if not firm.user_associations.filter(user=request.user).exists():
+                    return JsonResponse({'error': 'Bu firmaya erişim yetkiniz yok'}, status=403)
+    except Firm.DoesNotExist:
+        return JsonResponse({'error': 'Firma bulunamadı'}, status=404)
+
     from django.utils import timezone
     start = timezone.make_aware(datetime.strptime(start_date, '%Y-%m-%d'))
     end = timezone.make_aware(datetime.strptime(end_date, '%Y-%m-%d'))
@@ -643,6 +658,39 @@ def save_report(request):
         )
         
         return JsonResponse({'success': True, 'report_id': report.id})
+
+@login_required
+def save_draft(request):
+    """Rapor taslağını kaydet"""
+    if request.method == 'POST':
+        data = json.loads(request.body)
+        
+        # Session'da sakla veya veritabanına kaydet
+        request.session[f'draft_{data["firm_id"]}'] = {
+            'content': data['content'],
+            'saved_at': timezone.now().isoformat()
+        }
+        
+        return JsonResponse({'success': True})
+    
+    return JsonResponse({'success': False})
+
+@login_required
+def load_draft(request, firm_id):
+    """Kaydedilmiş taslağı yükle"""
+    draft_key = f'draft_{firm_id}'
+    
+    if draft_key in request.session:
+        draft = request.session[draft_key]
+        return JsonResponse({
+            'success': True,
+            'draft': draft
+        })
+    
+    return JsonResponse({
+        'success': False,
+        'message': 'Taslak bulunamadı'
+    })
 
 @login_required
 def api_get_input(request, input_id):
@@ -1375,10 +1423,18 @@ def input_list_view(request):
 @permission_required('carbon.view_report_carbon', raise_exception=True)
 def report_list_view(request):
     """Rapor listesi ve yönetim sayfası"""
-    firms = Firm.objects.filter(
-        userfirmaccess__user=request.user,
-        userfirmaccess__can_view=True
-    )
+    
+    # Kullanıcının erişebileceği firmaları al
+    if request.user.is_superuser:
+        firms = Firm.objects.all()
+    else:
+        # Custom User modelini kullan
+        if hasattr(request.user, 'user'):  # Eğer request.user bir AuthUser ise
+            user_obj = request.user.user  # Custom User objesini al
+            firms = Firm.objects.filter(user_associations__user=user_obj)
+        else:
+            # Doğrudan custom User ise
+            firms = Firm.objects.filter(user_associations__user=request.user)
     
     context = {
         'firms': firms,

@@ -35,6 +35,8 @@ urlpatterns = [
     # Rapor
     path('report/', views.report_list_view, name='report-list'),
     path('api/report-data/', views.api_report_data, name='api-report-data'),
+    path('api/save-draft/', views.save_draft, name='save-draft'),
+    path('api/load-draft/<int:firm_id>/', views.load_draft, name='load-draft'),
 
     path('reports/create/', views.report_create_view, name='report-create'),
     path('reports/<int:report_id>/editor/', views.report_editor_view, name='report-editor'),
