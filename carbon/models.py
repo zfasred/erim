@@ -43,8 +43,8 @@ class DynamicCarbonInput(models.Model):
     
     # Hesaplanan değerler
     co2e_total = models.DecimalField(
-        max_digits=15, 
-        decimal_places=6, 
+        max_digits=20, 
+        decimal_places=10, 
         default=0,
         verbose_name="Toplam CO2e"
     )
