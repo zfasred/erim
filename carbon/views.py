@@ -186,11 +186,12 @@ def api_report_data(request):
 
 def calculate_emission_for_report(scope, subscope, data, date):
     """Rapor için emisyon hesaplama - CO2e toplamı"""
-    
+
     try:
+
         # Kapsam 1.1 - Sabit Yanma
         if scope == 1 and subscope == '1.1':
-            consumption = float(data.get('consumption', 0))
+            consumption = float(data.get('consumption', 0))  # m³ cinsinden
             coefficient_set = data.get('coefficient_set')
             
             if not coefficient_set:
@@ -205,15 +206,18 @@ def calculate_emission_for_report(scope, subscope, data, date):
                 Q(valid_to__gte=date) | Q(valid_to__isnull=True)
             )
             
-            yogunluk = 0
+            yogunluk = 0  # kg/m³ olarak saklanacak
             nkd = 0
             ef_co2 = 0
             ef_ch4 = 0
             ef_n2o = 0
             
             for coef in coefficients:
-                if coef.coefficient_type == 'YOGUNLUK_TON_LT':  # DOĞRU TİP
-                    yogunluk = float(coef.value)
+                if coef.coefficient_type == 'YOGUNLUK_KG_M3':
+                    yogunluk = float(coef.value)  # kg/m³ olarak direkt kullan
+                elif coef.coefficient_type == 'YOGUNLUK_TON_LT':
+                    # Eğer ton/litre olarak kayıtlıysa, kg/m³'e çevir
+                    yogunluk = float(coef.value) * 1000  # ton/litre × 1000 = kg/m³
                 elif coef.coefficient_type == 'NKD':
                     nkd = float(coef.value)
                 elif coef.coefficient_type == 'EF_CO2':
@@ -224,13 +228,16 @@ def calculate_emission_for_report(scope, subscope, data, date):
                     ef_n2o = float(coef.value)
             
             if yogunluk and nkd:
-                # Litre bazlı hesaplama (10^-9) - DOĞRU ÇARPAN
-                co2_ton = consumption * yogunluk * nkd * ef_co2 * 0.000000001
-                ch4_ton = consumption * yogunluk * nkd * ef_ch4 * 0.000000001
-                n2o_ton = consumption * yogunluk * nkd * ef_n2o * 0.000000001
+                # Excel ile aynı formül: m³ × kg/m³ × TJ/Gg × kgCO2/TJ × 10^-9
+                co2_ton = consumption * yogunluk * nkd * ef_co2 * 0.000000001  # 10^-9
+                ch4_ton = consumption * yogunluk * nkd * ef_ch4 * 0.000000001  # 10^-9
+                n2o_ton = consumption * yogunluk * nkd * ef_n2o * 0.000000001  # 10^-9
                 co2e_total = co2_ton + (ch4_ton * 27.9) + (n2o_ton * 273)
+                
                 return co2e_total
-        
+            else:
+                return 0
+
         # Kapsam 1.2 - Hareketli Yanma
         elif scope == 1 and subscope == '1.2':
             consumption = float(data.get('consumption', 0))
@@ -277,14 +284,14 @@ def calculate_emission_for_report(scope, subscope, data, date):
         # Kapsam 1.4 - Kaçak Emisyonlar
         elif scope == 1 and subscope == '1.4':
             gwp = float(data.get('gwp', 0))  # KIP değeri
-            leak_rate = float(data.get('leak_rate', 0))  # Kaçak oranı (katsayı olarak, yüzde değil)
+            leak_rate = float(data.get('leak_rate', 0))  # Kaçak oranı (katsayı olarak)
             gas_capacity = float(data.get('gas_capacity', 0))  
             quantity = float(data.get('quantity', 0))
             
             # Excel formülü: (Gaz Kapasitesi × Adet) × KIP / 1000 × Kaçak Oranı
             result = (gas_capacity * quantity) * gwp / 1000 * leak_rate
             return result
-        
+
         # Kapsam 2.1 - Elektrik
         elif scope == 2 and subscope == '2.1':
             consumption = float(data.get('consumption', 0))
@@ -410,6 +417,8 @@ def calculate_emission_for_report(scope, subscope, data, date):
 
     except Exception as e:
         print(f"Hesaplama hatası: {e}")
+        import traceback
+        traceback.print_exc()
         
     return 0  # VARSAYILAN DÖNÜŞ DEĞERİ
 
