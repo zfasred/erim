@@ -1,4 +1,4 @@
-<!-- templates/carbon/report.html - PicoCSS UYUMLU VERSİYON -->
+<!-- templates/carbon/report.html - TAM VE DÜZELTİLMİŞ VERSİYON -->
 {% extends 'base.html' %}
 {% load static %}
 
@@ -8,11 +8,14 @@
 {{ block.super }}
 <!-- Quill Editor CSS -->
 <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<!-- jsPDF for PDF export -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
 <style>
     /* PicoCSS Override ve Özel Stiller */
-    
-    /* Ana container için light tema zorla */
     .report-page {
         background: white !important;
         color: #333 !important;
@@ -20,7 +23,6 @@
         border-radius: 10px;
     }
     
-    /* Form elemanları için light tema */
     .report-page select,
     .report-page input {
         background: white !important;
@@ -28,7 +30,6 @@
         border: 1px solid #ccc !important;
     }
     
-    /* Control Panel - PicoCSS article class'ını kullan */
     .control-panel {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
         padding: 25px !important;
@@ -44,7 +45,6 @@
         display: block !important;
     }
     
-    /* Grid sistem için PicoCSS grid kullan */
     .control-grid {
         display: grid !important;
         grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)) !important;
@@ -52,7 +52,6 @@
         align-items: end !important;
     }
     
-    /* Butonlar */
     .btn-generate {
         background: white !important;
         color: #667eea !important;
@@ -70,7 +69,6 @@
         box-shadow: 0 5px 15px rgba(0,0,0,0.2) !important;
     }
     
-    /* Tab System - PicoCSS nav kullanarak */
     .report-tabs {
         display: flex !important;
         gap: 10px !important;
@@ -104,7 +102,6 @@
         background: #667eea !important;
     }
     
-    /* Tab içerikleri */
     .tab-content {
         display: none !important;
         background: white !important;
@@ -116,7 +113,6 @@
         display: block !important;
     }
     
-    /* Summary Cards - PicoCSS grid ile */
     .summary-cards {
         display: grid !important;
         grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)) !important;
@@ -157,7 +153,6 @@
         font-size: 14px !important;
     }
     
-    /* Editor Container */
     .editor-container {
         background: white !important;
         border-radius: 12px !important;
@@ -182,7 +177,6 @@
         color: #333 !important;
     }
     
-    /* Export butonları */
     .export-buttons {
         display: flex !important;
         gap: 10px !important;
@@ -199,19 +193,10 @@
         color: white !important;
     }
     
-    .btn-pdf {
-        background: #dc3545 !important;
-    }
+    .btn-pdf { background: #dc3545 !important; }
+    .btn-word { background: #0066cc !important; }
+    .btn-excel { background: #28a745 !important; }
     
-    .btn-word {
-        background: #0066cc !important;
-    }
-    
-    .btn-excel {
-        background: #28a745 !important;
-    }
-    
-    /* Quill Editor override */
     .ql-toolbar {
         background: #f8f9fa !important;
         border: none !important;
@@ -231,7 +216,6 @@
         min-height: 400px !important;
     }
     
-    /* Loading spinner */
     #loading {
         display: none;
         text-align: center;
@@ -245,7 +229,6 @@
         display: block !important;
     }
     
-    /* Charts container */
     .chart-grid {
         display: grid !important;
         grid-template-columns: 1fr 1fr !important;
@@ -253,207 +236,35 @@
         margin-top: 30px !important;
     }
     
+    .data-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 20px;
+    }
+    
+    .data-table th {
+        background: #f8f9fa;
+        padding: 12px;
+        text-align: left;
+        font-weight: 600;
+        color: #333;
+        border-bottom: 2px solid #dee2e6;
+    }
+    
+    .data-table td {
+        padding: 12px;
+        border-bottom: 1px solid #dee2e6;
+    }
+    
     @media (max-width: 768px) {
-        .chart-grid {
-            grid-template-columns: 1fr !important;
-        }
-        
-        .control-grid {
-            grid-template-columns: 1fr !important;
-        }
-        
-        .summary-cards {
-            grid-template-columns: 1fr !important;
-        }
+        .chart-grid { grid-template-columns: 1fr !important; }
+        .control-grid { grid-template-columns: 1fr !important; }
+        .summary-cards { grid-template-columns: 1fr !important; }
     }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="report-container">
-    <h1 style="margin-bottom: 30px; color: #333;">
-        <i class="fas fa-chart-line"></i> Karbon Emisyon Rapor Yönetimi
-    </h1>
-    
-    <!-- Control Panel -->
-    <div class="control-panel">
-        <div class="control-row">
-            <div class="control-group">
-                <label>Firma Seçimi</label>
-                <select id="firm-select" class="form-select">
-                    <option value="">Firma Seçiniz</option>
-                    {% for firm in firms %}
-                    <option value="{{ firm.id }}">{{ firm.name }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            
-            <div class="control-group">
-                <label>Başlangıç Tarihi</label>
-                <input type="date" id="start-date" class="form-control">
-            </div>
-            
-            <div class="control-group">
-                <label>Bitiş Tarihi</label>
-                <input type="date" id="end-date" class="form-control">
-            </div>
-            
-            <div class="control-group">
-                <label>Rapor Tipi</label>
-                <select id="report-type" class="form-select">
-                    <option value="detailed">Detaylı Rapor</option>
-                    <option value="summary">Özet Rapor</option>
-                    <option value="executive">Yönetici Özeti</option>
-                    <option value="custom">Özelleştirilmiş Rapor</option>
-                </select>
-            </div>
-            
-            <div class="control-group" style="align-self: flex-end;">
-                <button id="generate-report" class="btn-generate">
-                    <i class="fas fa-magic"></i> Rapor Oluştur
-                </button>
-            </div>
-        </div>
-    </div>
-    
-    <!-- Tab System -->
-    <div class="report-tabs">
-        <button class="tab-btn active" data-tab="preview">
-            <i class="fas fa-eye"></i> Önizleme
-        </button>
-        <button class="tab-btn" data-tab="editor">
-            <i class="fas fa-edit"></i> Düzenle
-        </button>
-        <button class="tab-btn" data-tab="charts">
-            <i class="fas fa-chart-pie"></i> Grafikler
-        </button>
-        <button class="tab-btn" data-tab="data">
-            <i class="fas fa-table"></i> Veri Tabloları
-        </button>
-    </div>
-    
-    <!-- Tab Contents -->
-    <div id="tab-preview" class="tab-content active">
-        <!-- Summary Cards -->
-        <div class="summary-cards">
-            <div class="summary-card">
-                <h4>Kapsam 1</h4>
-                <div class="value" id="scope1-value">0</div>
-                <div class="unit">tCO₂e</div>
-            </div>
-            <div class="summary-card">
-                <h4>Kapsam 2</h4>
-                <div class="value" id="scope2-value">0</div>
-                <div class="unit">tCO₂e</div>
-            </div>
-            <div class="summary-card">
-                <h4>Kapsam 3</h4>
-                <div class="value" id="scope3-value">0</div>
-                <div class="unit">tCO₂e</div>
-            </div>
-            <div class="summary-card">
-                <h4>Toplam Emisyon</h4>
-                <div class="value" id="total-value">0</div>
-                <div class="unit">tCO₂e</div>
-            </div>
-        </div>
-        
-        <!-- Preview Content -->
-        <div class="editor-container">
-            <div class="editor-toolbar">
-                <div class="toolbar-group">
-                    <h3>Rapor Önizleme</h3>
-                </div>
-                <div class="export-buttons">
-                    <button class="btn-export btn-pdf" onclick="exportPDF()">
-                        <i class="fas fa-file-pdf"></i> PDF İndir
-                    </button>
-                    <button class="btn-export btn-word" onclick="exportWord()">
-                        <i class="fas fa-file-word"></i> Word İndir
-                    </button>
-                    <button class="btn-export btn-excel" onclick="exportExcel()">
-                        <i class="fas fa-file-excel"></i> Excel İndir
-                    </button>
-                </div>
-            </div>
-            <div id="preview-content" class="editor-content">
-                <p style="color: #999; text-align: center; padding: 50px;">
-                    Rapor oluşturmak için yukarıdaki formu doldurun ve "Rapor Oluştur" butonuna tıklayın.
-                </p>
-            </div>
-        </div>
-    </div>
-    
-    <div id="tab-editor" class="tab-content">
-        <div class="editor-container">
-            <div class="editor-toolbar">
-                <div class="toolbar-group">
-                    <h3>Rapor Düzenleyici</h3>
-                </div>
-                <div class="export-buttons">
-                    <button class="btn-export btn-pdf" onclick="saveEditorContent()">
-                        <i class="fas fa-save"></i> Kaydet
-                    </button>
-                </div>
-            </div>
-            <!-- Quill Editor -->
-            <div id="quill-toolbar">
-                <select class="ql-header">
-                    <option selected>Normal</option>
-                    <option value="1">Başlık 1</option>
-                    <option value="2">Başlık 2</option>
-                    <option value="3">Başlık 3</option>
-                </select>
-                <button class="ql-bold"></button>
-                <button class="ql-italic"></button>
-                <button class="ql-underline"></button>
-                <button class="ql-strike"></button>
-                <button class="ql-list" value="ordered"></button>
-                <button class="ql-list" value="bullet"></button>
-                <button class="ql-align" value=""></button>
-                <button class="ql-align" value="center"></button>
-                <button class="ql-align" value="right"></button>
-                <button class="ql-link"></button>
-                <button class="ql-image"></button>
-                <button class="ql-clean"></button>
-            </div>
-            <div id="quill-editor"></div>
-        </div>
-    </div>
-    
-    <div id="tab-charts" class="tab-content">
-        <div class="editor-container">
-            <div class="editor-content">
-                <h3>Emisyon Dağılım Grafikleri</h3>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-top: 30px;">
-                    <div>
-                        <canvas id="pieChart"></canvas>
-                    </div>
-                    <div>
-                        <canvas id="barChart"></canvas>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-    
-    <div id="tab-data" class="tab-content">
-        <div class="editor-container">
-            <div class="editor-content">
-                <h3>Detaylı Veri Tabloları</h3>
-                <div id="data-tables-container">
-                    <!-- Dinamik olarak doldurulacak -->
-                </div>
-            </div>
-        </div>
-    </div>
-    
-    <!-- Loading Spinner -->
-    <div id="loading" class="loading-spinner">
-        <div class="spinner"></div>
-        <p style="margin-top: 20px; color: #666;">Rapor oluşturuluyor...</p>
-    </div>
-</div>
 <div class="report-page">
     <h1><i class="fas fa-chart-line"></i> Karbon Emisyon Rapor Yönetimi</h1>
     
@@ -626,6 +437,7 @@
         <p>Rapor oluşturuluyor...</p>
     </div>
 </div>
+
 <!-- Quill Editor JS -->
 <script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
 
@@ -636,20 +448,24 @@ let reportData = null;
 let pieChartInstance = null;
 let barChartInstance = null;
 
+// Sayfa yüklendiğinde
 document.addEventListener('DOMContentLoaded', function() {
     initQuillEditor();
     initTabSystem();
     
     document.getElementById('generate-report').addEventListener('click', generateReport);
     
+    // Bugünün tarihini varsayılan olarak ayarla
     const today = new Date().toISOString().split('T')[0];
     document.getElementById('end-date').value = today;
     
+    // 1 yıl öncesini başlangıç tarihi yap
     const oneYearAgo = new Date();
     oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
     document.getElementById('start-date').value = oneYearAgo.toISOString().split('T')[0];
 });
 
+// Quill Editor Başlatma
 function initQuillEditor() {
     quillEditor = new Quill('#quill-editor', {
         theme: 'snow',
@@ -660,26 +476,28 @@ function initQuillEditor() {
     });
 }
 
+// Tab Sistemi
 function initTabSystem() {
     const tabButtons = document.querySelectorAll('.report-tabs button');
     
     tabButtons.forEach(btn => {
         btn.addEventListener('click', function() {
+            // Aktif tab'ı kaldır
             document.querySelectorAll('.report-tabs button').forEach(b => b.classList.remove('active'));
             document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
             
+            // Yeni tab'ı aktif et
             this.classList.add('active');
             const tabId = 'tab-' + this.dataset.tab;
             document.getElementById(tabId).classList.add('active');
             
+            // Grafikleri yenile (eğer grafik tab'ı açıldıysa)
             if (this.dataset.tab === 'charts' && reportData) {
                 updateCharts();
             }
         });
     });
 }
-
-
 
 // Rapor Oluşturma
 function generateReport() {
@@ -795,7 +613,7 @@ function createReportContent(data, reportType) {
             <h2 style="text-align: center; color: #666;">${firmName}</h2>
             <p style="text-align: center;">Dönem: ${startDate} - ${endDate}</p>
             
-            <table class="data-table" style="margin: 30px 0;">
+            <table class="data-table" style="margin: 30px 0; width: 100%;">
                 <tr>
                     <th>Kapsam</th>
                     <th>Emisyon (tCO₂e)</th>
@@ -804,22 +622,22 @@ function createReportContent(data, reportType) {
                 <tr>
                     <td>Kapsam 1 - Doğrudan Emisyonlar</td>
                     <td>${scope1.toFixed(2)}</td>
-                    <td>${((scope1/total)*100).toFixed(1)}%</td>
+                    <td>${total > 0 ? ((scope1/total)*100).toFixed(1) : '0'}%</td>
                 </tr>
                 <tr>
                     <td>Kapsam 2 - Enerji Kaynaklı</td>
                     <td>${scope2.toFixed(2)}</td>
-                    <td>${((scope2/total)*100).toFixed(1)}%</td>
+                    <td>${total > 0 ? ((scope2/total)*100).toFixed(1) : '0'}%</td>
                 </tr>
                 <tr>
                     <td>Kapsam 3 - Diğer Dolaylı</td>
                     <td>${scope3.toFixed(2)}</td>
-                    <td>${((scope3/total)*100).toFixed(1)}%</td>
+                    <td>${total > 0 ? ((scope3/total)*100).toFixed(1) : '0'}%</td>
                 </tr>
                 <tr>
                     <td>Kapsam 4 - Tedarik Zinciri</td>
                     <td>${scope4.toFixed(2)}</td>
-                    <td>${((scope4/total)*100).toFixed(1)}%</td>
+                    <td>${total > 0 ? ((scope4/total)*100).toFixed(1) : '0'}%</td>
                 </tr>
                 <tr style="background: #f8f9fa; font-weight: bold;">
                     <td>TOPLAM</td>
@@ -829,7 +647,7 @@ function createReportContent(data, reportType) {
             </table>
         `;
     } else {
-        // Detaylı Rapor
+        // Detaylı Rapor (default)
         content = `
             <h1 style="text-align: center;">KARBON AYAK İZİ DETAYLI RAPORU</h1>
             <h2 style="text-align: center; color: #666;">${firmName}</h2>
@@ -845,28 +663,28 @@ function createReportContent(data, reportType) {
             <p>Doğrudan emisyonlar, firmanın sahip olduğu veya kontrol ettiği kaynaklardan ortaya çıkan emisyonlardır.</p>
             <ul>
                 <li>Toplam Kapsam 1 Emisyonu: <strong>${scope1.toFixed(2)} tCO₂e</strong></li>
-                <li>Toplam emisyon içindeki payı: <strong>${((scope1/total)*100).toFixed(1)}%</strong></li>
+                <li>Toplam emisyon içindeki payı: <strong>${total > 0 ? ((scope1/total)*100).toFixed(1) : '0'}%</strong></li>
             </ul>
             
             <h3>2.2. Kapsam 2 - Enerji Kaynaklı Dolaylı Emisyonlar</h3>
             <p>Satın alınan elektrik, buhar, ısıtma ve soğutmadan kaynaklanan emisyonlardır.</p>
             <ul>
                 <li>Toplam Kapsam 2 Emisyonu: <strong>${scope2.toFixed(2)} tCO₂e</strong></li>
-                <li>Toplam emisyon içindeki payı: <strong>${((scope2/total)*100).toFixed(1)}%</strong></li>
+                <li>Toplam emisyon içindeki payı: <strong>${total > 0 ? ((scope2/total)*100).toFixed(1) : '0'}%</strong></li>
             </ul>
             
             <h3>2.3. Kapsam 3 - Diğer Dolaylı Emisyonlar</h3>
             <p>Değer zincirinde oluşan diğer dolaylı emisyonlardır.</p>
             <ul>
                 <li>Toplam Kapsam 3 Emisyonu: <strong>${scope3.toFixed(2)} tCO₂e</strong></li>
-                <li>Toplam emisyon içindeki payı: <strong>${((scope3/total)*100).toFixed(1)}%</strong></li>
+                <li>Toplam emisyon içindeki payı: <strong>${total > 0 ? ((scope3/total)*100).toFixed(1) : '0'}%</strong></li>
             </ul>
             
             <h3>2.4. Kapsam 4 - Tedarik Zinciri Emisyonları</h3>
             <p>Tedarik zinciri boyunca oluşan emisyonlardır.</p>
             <ul>
                 <li>Toplam Kapsam 4 Emisyonu: <strong>${scope4.toFixed(2)} tCO₂e</strong></li>
-                <li>Toplam emisyon içindeki payı: <strong>${((scope4/total)*100).toFixed(1)}%</strong></li>
+                <li>Toplam emisyon içindeki payı: <strong>${total > 0 ? ((scope4/total)*100).toFixed(1) : '0'}%</strong></li>
             </ul>
             
             <h2>3. AZALTIM ÖNERİLERİ</h2>
@@ -886,7 +704,7 @@ function createReportContent(data, reportType) {
     return content;
 }
 
-// En yüksek emisyon kaynağını bul
+// En yüksek emisyon kaynağını bul - EKSİK FONKSİYON EKLENDİ
 function getHighestScope(data) {
     const scopes = {
         'Kapsam 1': data.scope_totals?.scope_1 || 0,
@@ -905,7 +723,7 @@ function getHighestScope(data) {
         }
     }
     
-    return highest;
+    return highest || 'Belirlenemedi';
 }
 
 // Grafikleri Güncelle
@@ -990,7 +808,7 @@ function updateCharts() {
     });
 }
 
-// Veri Tablolarını Güncelle
+// Veri Tablolarını Güncelle - EKSİK FONKSİYON EKLENDİ
 function updateDataTables(data) {
     const container = document.getElementById('data-tables-container');
     let html = '';
@@ -1000,14 +818,15 @@ function updateDataTables(data) {
         const scopeNumber = scope.replace('scope_', '');
         html += `<h4>Kapsam ${scopeNumber} Detayları</h4>`;
         html += '<table class="data-table">';
-        html += '<thead><tr><th>Alt Kapsam</th><th>Değer</th><th>Birim</th><th>Emisyon (tCO₂e)</th></tr></thead>';
+        html += '<thead><tr><th>Alt Kapsam</th><th>Tarih</th><th>Değer</th><th>Birim</th><th>Emisyon (tCO₂e)</th></tr></thead>';
         html += '<tbody>';
         
         for (const [subscope, subscopeData] of Object.entries(scopeData)) {
             subscopeData.items?.forEach(item => {
                 html += '<tr>';
-                html += `<td>${subscope}</td>`;
-                html += `<td>${item.data?.value || '-'}</td>`;
+                html += `<td>${subscopeData.name || subscope}</td>`;
+                html += `<td>${item.date || '-'}</td>`;
+                html += `<td>${item.data?.value || item.data?.consumption || '-'}</td>`;
                 html += `<td>${item.data?.unit || '-'}</td>`;
                 html += `<td>${item.co2e?.toFixed(2) || '0.00'}</td>`;
                 html += '</tr>';
@@ -1017,12 +836,21 @@ function updateDataTables(data) {
         html += '</tbody></table><br>';
     }
     
+    if (html === '') {
+        html = '<p style="text-align: center; color: #999;">Veri bulunamadı</p>';
+    }
+    
     container.innerHTML = html;
 }
 
 // Export Fonksiyonları
 function exportPDF() {
     const content = document.getElementById('preview-content');
+    
+    if (typeof html2canvas === 'undefined' || typeof jspdf === 'undefined') {
+        alert('PDF export kütüphaneleri yükleniyor, lütfen tekrar deneyin...');
+        return;
+    }
     
     html2canvas(content).then(canvas => {
         const imgData = canvas.toDataURL('image/png');
@@ -1044,6 +872,9 @@ function exportPDF() {
         }
         
         pdf.save('karbon-raporu.pdf');
+    }).catch(error => {
+        console.error('PDF oluşturma hatası:', error);
+        alert('PDF oluşturulurken hata oluştu!');
     });
 }
 
@@ -1078,19 +909,19 @@ function exportExcel() {
     // Excel export için basit CSV oluştur
     let csv = 'Kapsam,Emisyon (tCO2e),Oran (%)\n';
     
-    const scope1 = reportData.scope_totals?.scope_1 || 0;
-    const scope2 = reportData.scope_totals?.scope_2 || 0;
-    const scope3 = reportData.scope_totals?.scope_3 || 0;
-    const scope4 = reportData.scope_totals?.scope_4 || 0;
+    const scope1 = reportData?.scope_totals?.scope_1 || 0;
+    const scope2 = reportData?.scope_totals?.scope_2 || 0;
+    const scope3 = reportData?.scope_totals?.scope_3 || 0;
+    const scope4 = reportData?.scope_totals?.scope_4 || 0;
     const total = scope1 + scope2 + scope3 + scope4;
     
-    csv += `Kapsam 1,${scope1.toFixed(2)},${((scope1/total)*100).toFixed(1)}\n`;
-    csv += `Kapsam 2,${scope2.toFixed(2)},${((scope2/total)*100).toFixed(1)}\n`;
-    csv += `Kapsam 3,${scope3.toFixed(2)},${((scope3/total)*100).toFixed(1)}\n`;
-    csv += `Kapsam 4,${scope4.toFixed(2)},${((scope4/total)*100).toFixed(1)}\n`;
+    csv += `Kapsam 1,${scope1.toFixed(2)},${total > 0 ? ((scope1/total)*100).toFixed(1) : '0'}\n`;
+    csv += `Kapsam 2,${scope2.toFixed(2)},${total > 0 ? ((scope2/total)*100).toFixed(1) : '0'}\n`;
+    csv += `Kapsam 3,${scope3.toFixed(2)},${total > 0 ? ((scope3/total)*100).toFixed(1) : '0'}\n`;
+    csv += `Kapsam 4,${scope4.toFixed(2)},${total > 0 ? ((scope4/total)*100).toFixed(1) : '0'}\n`;
     csv += `TOPLAM,${total.toFixed(2)},100`;
     
-    const blob = new Blob([csv], { type: 'text/csv' });
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
