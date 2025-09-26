@@ -288,6 +288,176 @@
         0% { transform: rotate(0deg); }
         100% { transform: rotate(360deg); }
     }
+
+    @keyframes slideIn {
+        from {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+        to {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
+
+    .notification {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        padding: 10px 20px;
+        border-radius: 5px;
+        z-index: 9999;
+        animation: slideIn 0.3s ease-out;
+        font-size: 14px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+    }
+
+    .notification.success {
+        background: #28a745;
+        color: white;
+    }
+
+    .notification.error {
+        background: #dc3545;
+        color: white;
+    }
+
+    /* Grafik ekleme butonu için özel stil */
+    #quill-toolbar button[onclick*="insertChart"] {
+        background: #f8f9fa;
+        border: 1px solid #dee2e6;
+        padding: 3px 10px;
+        cursor: pointer;
+        font-size: 14px;
+        border-radius: 4px;
+        margin-left: 5px;
+    }
+
+    #quill-toolbar button[onclick*="insertChart"]:hover {
+        background: #e9ecef;
+    }
+
+    /* Loading overlay - veri yüklenirken */
+    .loading-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 9998;
+    }
+
+    .loading-overlay.hidden {
+        display: none;
+    }
+
+    /* Otomatik kaydetme göstergesi */
+    .auto-save-indicator {
+        position: fixed;
+        top: 70px;
+        right: 20px;
+        padding: 5px 10px;
+        background: #ffc107;
+        color: #333;
+        border-radius: 20px;
+        font-size: 12px;
+        display: none;
+    }
+
+    .auto-save-indicator.active {
+        display: block;
+        animation: pulse 1s infinite;
+    }
+
+    @keyframes pulse {
+        0% { opacity: 1; }
+        50% { opacity: 0.5; }
+        100% { opacity: 1; }
+    }
+
+    /* Firma logosu için stil */
+    .firm-logo {
+        max-width: 200px;
+        height: auto;
+        margin: 0 auto 30px;
+        display: block;
+    }
+
+    /* Export butonları hover efekti */
+    .btn-export {
+        transition: all 0.3s ease;
+    }
+
+    .btn-export:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+    }
+
+    /* Tab içeriği geçiş animasyonu */
+    .tab-content {
+        opacity: 0;
+        transition: opacity 0.3s ease;
+    }
+
+    .tab-content.active {
+        opacity: 1;
+    }
+
+    /* Grafik container'ları için responsive düzenleme */
+    @media (max-width: 768px) {
+        .chart-container {
+            grid-template-columns: 1fr !important;
+        }
+        
+        .summary-cards {
+            grid-template-columns: 1fr !important;
+        }
+        
+        .control-row {
+            flex-direction: column;
+        }
+        
+        .control-group {
+            width: 100%;
+            margin-bottom: 10px;
+        }
+    }
+
+    /* Print stilleri - PDF export için */
+    @media print {
+        .control-panel,
+        .report-tabs,
+        .export-buttons,
+        .btn-export,
+        #quill-toolbar {
+            display: none !important;
+        }
+        
+        .editor-container {
+            box-shadow: none !important;
+            border: none !important;
+        }
+        
+        .editor-content {
+            padding: 0 !important;
+        }
+        
+        body {
+            font-size: 12pt;
+        }
+        
+        h1 { font-size: 18pt; }
+        h2 { font-size: 16pt; }
+        h3 { font-size: 14pt; }
+        
+        table {
+            page-break-inside: avoid;
+        }
+    }
 </style>
 {% endblock %}
 
