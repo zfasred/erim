@@ -344,7 +344,8 @@ def calculate_emission_for_report(scope, subscope, data, date):
                 Q(valid_to__gte=date) | Q(valid_to__isnull=True)
             )
             
-            yogunluk = 0
+            # Varsayılan değerler
+            yogunluk = 0  # kg/litre veya ton/litre
             nkd = 0
             ef_co2 = 0
             ef_ch4 = 0
@@ -353,7 +354,7 @@ def calculate_emission_for_report(scope, subscope, data, date):
             for coef in coefficients:
                 # HER İKİ YOĞUNLUK TİPİNİ DE KONTROL ET
                 if coef.coefficient_type == 'YOGUNLUK_TON_LT':
-                    yogunluk = float(coef.value)
+                    yogunluk = float(coef.value)  # ton/litre olarak
                 elif coef.coefficient_type == 'YOGUNLUK_KG_LT':
                     yogunluk = float(coef.value) / 1000  # kg/lt'yi ton/lt'ye çevir
                 elif coef.coefficient_type == 'NKD':
@@ -366,11 +367,31 @@ def calculate_emission_for_report(scope, subscope, data, date):
                     ef_n2o = float(coef.value)
             
             if yogunluk and nkd:
-                co2_ton = consumption * yogunluk * nkd * ef_co2 * 0.000000001
-                ch4_ton = consumption * yogunluk * nkd * ef_ch4 * 0.000000001
-                n2o_ton = consumption * yogunluk * nkd * ef_n2o * 0.000000001
+                # Litre bazlı hesaplama - Excel ile aynı formül
+                # Litre × ton/litre × TJ/Gg × kgCO2/TJ × 10^-6
+                # veya
+                # Litre × kg/litre × TJ/Gg × kgCO2/TJ × 10^-9
+                
+                # Yoğunluk ton/litre ise:
+                if yogunluk < 0.01:  # ton/litre (küçük değer)
+                    co2_ton = consumption * yogunluk * nkd * ef_co2 * 0.000001  # 10^-6
+                    ch4_ton = consumption * yogunluk * nkd * ef_ch4 * 0.000001
+                    n2o_ton = consumption * yogunluk * nkd * ef_n2o * 0.000001
+                else:  # Büyük değerse kg/litre olarak gelmiş demektir, ton/litre'ye çevir
+                    yogunluk_ton_lt = yogunluk / 1000 if yogunluk > 0.01 else yogunluk
+                    co2_ton = consumption * yogunluk_ton_lt * nkd * ef_co2 * 0.000001
+                    ch4_ton = consumption * yogunluk_ton_lt * nkd * ef_ch4 * 0.000001
+                    n2o_ton = consumption * yogunluk_ton_lt * nkd * ef_n2o * 0.000001
+                
                 co2e_total = co2_ton + (ch4_ton * 27.9) + (n2o_ton * 273)
                 return co2e_total
+            
+            # ALTERNATIF: Basit emisyon faktörü yaklaşımı (direkt kg CO2/litre)
+            # Motorin için yaklaşık 2.66 kg CO2/litre
+            elif not nkd and not yogunluk:
+                # Varsayılan motorin emisyon faktörü kullan
+                default_ef = 2.66  # kg CO2/litre (motorin için)
+                return (consumption * default_ef) / 1000  # ton CO2'ye çevir
         
         # Diğer Kapsam 3 alt kapsamları ve Kapsam 4, 5, 6 için basit hesaplama
         elif scope in [3, 4, 5, 6]:
