@@ -36,7 +36,6 @@ from .forms import (
 
 from core.models import UserFirm, Firm, User
 
-
 @login_required
 def report_editor_view(request, report_id):
     """Rapor editör sayfası"""
@@ -49,7 +48,6 @@ def report_editor_view(request, report_id):
     }
     
     return render(request, 'carbon/report_editor.html', context)
-
 
 @login_required 
 def get_report_data_ajax(request, report_id):
@@ -82,7 +80,6 @@ def get_report_data_ajax(request, report_id):
     
     return JsonResponse(data)
 
-
 def get_user_firms(request):
     """Kullanıcının erişebileceği firmaları döndür"""
     if request.user.is_superuser:
@@ -114,7 +111,6 @@ def api_get_coefficient_names(request):
     
     return JsonResponse({'names': names_list})
 
-
 @login_required
 def api_report_data(request):
     """Rapor verilerini JSON olarak döndür - GERÇEK VERİLER"""
@@ -127,8 +123,9 @@ def api_report_data(request):
     
     # Tarih formatını düzenle
     try:
-        start = datetime.strptime(start_date, '%Y-%m-%d')
-        end = datetime.strptime(end_date, '%Y-%m-%d')
+        from django.utils import timezone
+        start = timezone.make_aware(datetime.strptime(start_date, '%Y-%m-%d'))
+        end = timezone.make_aware(datetime.strptime(end_date, '%Y-%m-%d'))
         # Bitiş tarihine 23:59:59 ekle
         end = end.replace(hour=23, minute=59, second=59)
     except ValueError:
@@ -152,8 +149,13 @@ def api_report_data(request):
     # DynamicCarbonInput verilerini çek
     inputs = DynamicCarbonInput.objects.filter(
         firm_id=firm_id,
-        datetime__range=[start, end]
+        datetime__gte=start,
+        datetime__lte=end
     ).select_related('subscope')
+    
+    print(f"DEBUG: Bulunan kayıt sayısı: {inputs.count()}")
+    print(f"DEBUG: Tarih aralığı: {start} - {end}")
+    print(f"DEBUG: Firma ID: {firm_id}")
     
     # Kapsam bazlı gruplama için dictionary
     scope_totals = {
@@ -173,8 +175,13 @@ def api_report_data(request):
     # Her bir girdiyi işle
     for inp in inputs:
         scope_key = f"scope_{inp.scope}"
-        subscope_key = inp.subscope.code
-        subscope_name = inp.subscope.name
+        
+        # Geçerli scope kontrolü (1-4 arası)
+        if inp.scope not in [1, 2, 3, 4]:
+            continue
+            
+        subscope_key = inp.subscope.code if inp.subscope else f"{inp.scope}.0"
+        subscope_name = inp.subscope.name if inp.subscope else "Diğer"
         
         # Alt kapsam yoksa oluştur
         if subscope_key not in scope_details[scope_key]:
@@ -196,23 +203,30 @@ def api_report_data(request):
         }
         
         # Veri tipine göre ek bilgiler ekle
-        if inp.scope == 1 and inp.subscope.code == '1.1':
+        if inp.scope == 1 and subscope_key == '1.1':
             # Sabit Yanma
-            item_detail['fuel_name'] = inp.data.get('coefficient_set', 'Belirtilmemiş')
+            item_detail['fuel_name'] = inp.data.get('coefficient_set', inp.data.get('fuel_type', 'Belirtilmemiş'))
             item_detail['value'] = inp.data.get('consumption', 0)
             item_detail['unit'] = inp.data.get('unit', 'm³')
-        elif inp.scope == 2 and inp.subscope.code == '2.1':
+            
+        elif inp.scope == 2 and subscope_key == '2.1':
             # Elektrik
             item_detail['name'] = 'Elektrik Tüketimi'
             item_detail['value'] = inp.data.get('consumption', 0)
             item_detail['unit'] = 'kWh'
-        elif inp.scope == 1 and inp.subscope.code == '1.4':
+            
+        elif inp.scope == 1 and subscope_key == '1.4':
             # Kaçak Emisyonlar
             item_detail['gas_type'] = inp.data.get('gas_type', 'Belirtilmemiş')
             item_detail['value'] = inp.data.get('quantity', 0)
             item_detail['unit'] = 'adet'
-        # Diğer kapsam detaylarını ekleyin...
-        
+            
+        elif inp.scope == 3:
+            # Kapsam 3 verileri
+            item_detail['name'] = inp.data.get('name', 'Kapsam 3 Aktivite')
+            item_detail['value'] = inp.data.get('value', inp.data.get('distance', inp.data.get('weight', 0)))
+            item_detail['unit'] = inp.data.get('unit', 'birim')
+            
         # Listeye ekle
         scope_details[scope_key][subscope_key]['items'].append(item_detail)
         scope_details[scope_key][subscope_key]['total'] += co2e_value
@@ -228,6 +242,10 @@ def api_report_data(request):
     # Toplam emisyonu hesapla
     total_emission = sum(scope_totals.values())
     
+    # Debug bilgisi
+    print(f"DEBUG: scope_totals: {scope_totals}")
+    print(f"DEBUG: total_emission: {total_emission}")
+    
     response_data = {
         'scope_totals': scope_totals,
         'scope_details': scope_details,
@@ -236,89 +254,12 @@ def api_report_data(request):
             'firm_name': firm.name,
             'start_date': start_date,
             'end_date': end_date,
-            'generated_at': datetime.now().isoformat()
+            'generated_at': datetime.now().isoformat(),
+            'record_count': inputs.count()
         }
     }
     
     return JsonResponse(response_data)
-
-# Yetki kontrolü
-    try:
-        firm = Firm.objects.get(id=firm_id)
-        
-        if not request.user.is_superuser:
-            if hasattr(request.user, 'user'):
-                user_obj = request.user.user
-                if not firm.user_associations.filter(user=user_obj).exists():
-                    return JsonResponse({'error': 'Bu firmaya erişim yetkiniz yok'}, status=403)
-            else:
-                if not firm.user_associations.filter(user=request.user).exists():
-                    return JsonResponse({'error': 'Bu firmaya erişim yetkiniz yok'}, status=403)
-    except Firm.DoesNotExist:
-        return JsonResponse({'error': 'Firma bulunamadı'}, status=404)
-
-    from django.utils import timezone
-    start = timezone.make_aware(datetime.strptime(start_date, '%Y-%m-%d'))
-    end = timezone.make_aware(datetime.strptime(end_date, '%Y-%m-%d'))
-    end = end.replace(hour=23, minute=59, second=59)
-    
-    # Verileri çek
-    inputs = DynamicCarbonInput.objects.filter(
-        firm_id=firm_id,
-        datetime__gte=start,
-        datetime__lte=end
-    )
-    
-    # Kapsam bazlı gruplama
-    scope_totals = {}
-    scope_details = {}
-    
-    for inp in inputs:
-        scope_key = f"scope_{inp.scope}"
-        subscope_key = inp.subscope.code
-        
-        # CO2 hesapla - RAPOR ANINDA
-        co2e_value = calculate_emission_for_report(
-            inp.scope, 
-            inp.subscope.code, 
-            inp.data,
-            inp.datetime  # Tarih bazlı katsayı için
-        )
-        
-        # Toplam hesapla
-        if scope_key not in scope_totals:
-            scope_totals[scope_key] = 0
-            scope_details[scope_key] = {}
-        
-        # Alt kapsam detayları
-        if subscope_key not in scope_details[scope_key]:
-            scope_details[scope_key][subscope_key] = {
-                'name': inp.subscope.name,
-                'items': [],
-                'total': 0
-            }
-        
-        # Veriyi ekle
-        scope_details[scope_key][subscope_key]['items'].append({
-            'date': inp.datetime.strftime('%d.%m.%Y'),
-            'data': inp.data,
-            'co2e': co2e_value  # Hesaplanan değer
-        })
-        
-        scope_details[scope_key][subscope_key]['total'] += co2e_value
-        scope_totals[scope_key] += co2e_value
-    
-    # Genel toplam
-    total_emission = sum(scope_totals.values())
-    
-    response_data = {
-        'scope_totals': scope_totals,
-        'scope_details': scope_details,
-        'total_emission': total_emission
-    }
-    
-    return JsonResponse(response_data)
-
 
 def calculate_emission_for_report(scope, subscope, data, date):
     """Rapor için emisyon hesaplama - CO2e toplamı"""
@@ -947,7 +888,6 @@ def api_recent_inputs(request):
     
     return JsonResponse(data, safe=False)
 
-
 @login_required
 @permission_required('carbon.view_management_carbon', raise_exception=True)
 def coefficient_list_view(request):
@@ -1010,7 +950,6 @@ def coefficient_list_view(request):
     
     return render(request, 'carbon/coefficient_list.html', context)
 
-
 @login_required
 @permission_required('carbon.view_management_carbon', raise_exception=True)
 def coefficient_create_view(request):
@@ -1034,7 +973,6 @@ def coefficient_create_view(request):
     }
     
     return render(request, 'carbon/coefficient_form.html', context)
-
 
 @login_required
 @permission_required('carbon.view_management_carbon', raise_exception=True)
@@ -1061,7 +999,6 @@ def coefficient_update_view(request, pk):
     
     return render(request, 'carbon/coefficient_form.html', context)
 
-
 @login_required
 @permission_required('carbon.view_management_carbon', raise_exception=True)
 def coefficient_delete_view(request, pk):
@@ -1080,7 +1017,6 @@ def coefficient_delete_view(request, pk):
     
     return render(request, 'carbon/coefficient_confirm_delete.html', context)
 
-
 @login_required
 def ajax_get_subscopes(request):
     """AJAX ile alt kapsam seçeneklerini getir"""
@@ -1094,7 +1030,6 @@ def ajax_get_subscopes(request):
                 subscopes.append({'code': code, 'label': label})
     
     return JsonResponse({'subscopes': subscopes})
-
 
 @login_required
 def ajax_get_coefficient_types(request):
@@ -1129,7 +1064,6 @@ def ajax_get_coefficient_types(request):
     
     return JsonResponse({'coefficient_types': types})
 
-
 @login_required
 @permission_required('carbon.view_input_carbon', raise_exception=True)
 def dynamic_input_view(request):
@@ -1148,7 +1082,6 @@ def dynamic_input_view(request):
     }
     
     return render(request, 'carbon/dynamic_input.html', context)
-
 
 @login_required
 @require_http_methods(["POST", "PUT", "DELETE"])
