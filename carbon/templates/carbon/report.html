@@ -1,461 +1,269 @@
-<!-- templates/carbon/report.html -->
+<!-- templates/carbon/report.html - PicoCSS UYUMLU VERSİYON -->
 {% extends 'base.html' %}
 {% load static %}
 
 {% block title %}Karbon Rapor Yönetimi{% endblock %}
 
-{% block extra_css %}
+{% block styles %}
+{{ block.super }}
 <!-- Quill Editor CSS -->
 <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
-<!-- Chart.js -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<!-- jsPDF for PDF export -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
 <style>
-    .report-container {
-        max-width: 1400px;
-        margin: 0 auto;
+    /* PicoCSS Override ve Özel Stiller */
+    
+    /* Ana container için light tema zorla */
+    .report-page {
+        background: white !important;
+        color: #333 !important;
         padding: 20px;
+        border-radius: 10px;
     }
     
+    /* Form elemanları için light tema */
+    .report-page select,
+    .report-page input {
+        background: white !important;
+        color: #333 !important;
+        border: 1px solid #ccc !important;
+    }
+    
+    /* Control Panel - PicoCSS article class'ını kullan */
     .control-panel {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        padding: 25px;
-        border-radius: 15px;
-        margin-bottom: 30px;
-        box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+        padding: 25px !important;
+        border-radius: 15px !important;
+        margin-bottom: 30px !important;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.1) !important;
     }
     
-    .control-row {
-        display: flex;
-        gap: 15px;
-        flex-wrap: wrap;
-        align-items: center;
+    .control-panel label {
+        color: white !important;
+        font-weight: 500 !important;
+        margin-bottom: 5px !important;
+        display: block !important;
     }
     
-    .control-group {
-        flex: 1;
-        min-width: 200px;
+    /* Grid sistem için PicoCSS grid kullan */
+    .control-grid {
+        display: grid !important;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)) !important;
+        gap: 1rem !important;
+        align-items: end !important;
     }
     
-    .control-group label {
-        color: white;
-        font-weight: 500;
-        margin-bottom: 5px;
-        display: block;
-    }
-    
-    .form-control, .form-select {
-        border-radius: 8px;
-        border: none;
-        padding: 10px 15px;
-        font-size: 14px;
-    }
-    
+    /* Butonlar */
     .btn-generate {
-        background: white;
-        color: #667eea;
-        border: none;
-        padding: 12px 30px;
-        border-radius: 8px;
-        font-weight: 600;
-        cursor: pointer;
-        transition: all 0.3s;
+        background: white !important;
+        color: #667eea !important;
+        border: none !important;
+        padding: 12px 30px !important;
+        border-radius: 8px !important;
+        font-weight: 600 !important;
+        cursor: pointer !important;
+        transition: all 0.3s !important;
+        margin-bottom: 0 !important;
     }
     
     .btn-generate:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        transform: translateY(-2px) !important;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.2) !important;
     }
     
-    /* Tab System */
+    /* Tab System - PicoCSS nav kullanarak */
     .report-tabs {
-        display: flex;
-        gap: 10px;
-        margin-bottom: 20px;
-        border-bottom: 2px solid #e0e0e0;
+        display: flex !important;
+        gap: 10px !important;
+        margin-bottom: 20px !important;
+        border-bottom: 2px solid #e0e0e0 !important;
+        background: transparent !important;
     }
     
-    .tab-btn {
-        padding: 12px 24px;
-        background: transparent;
-        border: none;
-        color: #666;
-        font-weight: 500;
-        cursor: pointer;
-        position: relative;
-        transition: all 0.3s;
+    .report-tabs button {
+        padding: 12px 24px !important;
+        background: transparent !important;
+        border: none !important;
+        color: #666 !important;
+        font-weight: 500 !important;
+        cursor: pointer !important;
+        position: relative !important;
+        margin-bottom: 0 !important;
     }
     
-    .tab-btn.active {
-        color: #667eea;
+    .report-tabs button.active {
+        color: #667eea !important;
     }
     
-    .tab-btn.active::after {
-        content: '';
-        position: absolute;
-        bottom: -2px;
-        left: 0;
-        right: 0;
-        height: 3px;
-        background: #667eea;
+    .report-tabs button.active::after {
+        content: '' !important;
+        position: absolute !important;
+        bottom: -2px !important;
+        left: 0 !important;
+        right: 0 !important;
+        height: 3px !important;
+        background: #667eea !important;
     }
     
+    /* Tab içerikleri */
     .tab-content {
-        display: none;
-        animation: fadeIn 0.3s;
+        display: none !important;
+        background: white !important;
+        padding: 20px !important;
+        border-radius: 10px !important;
     }
     
     .tab-content.active {
-        display: block;
+        display: block !important;
     }
     
-    @keyframes fadeIn {
-        from { opacity: 0; transform: translateY(10px); }
-        to { opacity: 1; transform: translateY(0); }
-    }
-    
-    /* Summary Cards */
+    /* Summary Cards - PicoCSS grid ile */
     .summary-cards {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-        gap: 20px;
-        margin-bottom: 30px;
+        display: grid !important;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)) !important;
+        gap: 20px !important;
+        margin-bottom: 30px !important;
     }
     
     .summary-card {
-        background: white;
-        padding: 20px;
-        border-radius: 12px;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.08);
-        transition: transform 0.3s;
+        background: white !important;
+        padding: 20px !important;
+        border-radius: 12px !important;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.08) !important;
+        border: 1px solid #e0e0e0 !important;
+        transition: transform 0.3s !important;
     }
     
     .summary-card:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 5px 20px rgba(0,0,0,0.12);
+        transform: translateY(-5px) !important;
+        box-shadow: 0 5px 20px rgba(0,0,0,0.12) !important;
     }
     
     .summary-card h4 {
-        color: #666;
-        font-size: 14px;
-        margin-bottom: 10px;
+        color: #666 !important;
+        font-size: 14px !important;
+        margin-bottom: 10px !important;
+        font-weight: normal !important;
     }
     
     .summary-card .value {
-        font-size: 28px;
-        font-weight: bold;
-        color: #333;
+        font-size: 28px !important;
+        font-weight: bold !important;
+        color: #333 !important;
+        margin: 10px 0 !important;
     }
     
     .summary-card .unit {
-        color: #999;
-        font-size: 14px;
+        color: #999 !important;
+        font-size: 14px !important;
     }
     
     /* Editor Container */
     .editor-container {
-        background: white;
-        border-radius: 12px;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.08);
-        overflow: hidden;
+        background: white !important;
+        border-radius: 12px !important;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.08) !important;
+        overflow: hidden !important;
+        margin-top: 20px !important;
     }
     
     .editor-toolbar {
-        background: #f8f9fa;
-        padding: 15px;
-        border-bottom: 1px solid #e0e0e0;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-    }
-    
-    .toolbar-group {
-        display: flex;
-        gap: 10px;
-        align-items: center;
+        background: #f8f9fa !important;
+        padding: 15px !important;
+        border-bottom: 1px solid #e0e0e0 !important;
+        display: flex !important;
+        justify-content: space-between !important;
+        align-items: center !important;
     }
     
     .editor-content {
-        min-height: 500px;
-        padding: 30px;
+        min-height: 500px !important;
+        padding: 30px !important;
+        background: white !important;
+        color: #333 !important;
     }
     
-    /* Quill Editor Custom Styles */
-    .ql-toolbar {
-        background: #f8f9fa;
-        border: none;
-        border-bottom: 1px solid #e0e0e0;
-    }
-    
-    .ql-container {
-        border: none;
-        font-size: 14px;
-    }
-    
-    .ql-editor {
-        min-height: 500px;
-        padding: 30px;
-    }
-    
-    /* Export Buttons */
+    /* Export butonları */
     .export-buttons {
-        display: flex;
-        gap: 10px;
+        display: flex !important;
+        gap: 10px !important;
     }
     
     .btn-export {
-        padding: 8px 20px;
-        border: none;
-        border-radius: 6px;
-        font-weight: 500;
-        cursor: pointer;
-        transition: all 0.3s;
-        display: flex;
-        align-items: center;
-        gap: 8px;
+        padding: 8px 20px !important;
+        border: none !important;
+        border-radius: 6px !important;
+        font-weight: 500 !important;
+        cursor: pointer !important;
+        transition: all 0.3s !important;
+        margin: 0 !important;
+        color: white !important;
     }
     
     .btn-pdf {
-        background: #dc3545;
-        color: white;
+        background: #dc3545 !important;
     }
     
     .btn-word {
-        background: #0066cc;
-        color: white;
+        background: #0066cc !important;
     }
     
     .btn-excel {
-        background: #28a745;
-        color: white;
+        background: #28a745 !important;
     }
     
-    .btn-export:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 3px 10px rgba(0,0,0,0.2);
+    /* Quill Editor override */
+    .ql-toolbar {
+        background: #f8f9fa !important;
+        border: none !important;
+        border-bottom: 1px solid #e0e0e0 !important;
     }
     
-    /* Data Tables */
-    .data-table {
-        width: 100%;
-        border-collapse: collapse;
-        margin-top: 20px;
+    .ql-container {
+        border: none !important;
+        background: white !important;
+        color: #333 !important;
+        min-height: 400px !important;
     }
     
-    .data-table th {
-        background: #f8f9fa;
-        padding: 12px;
-        text-align: left;
-        font-weight: 600;
-        color: #333;
-        border-bottom: 2px solid #dee2e6;
+    .ql-editor {
+        background: white !important;
+        color: #333 !important;
+        min-height: 400px !important;
     }
     
-    .data-table td {
-        padding: 12px;
-        border-bottom: 1px solid #dee2e6;
-    }
-    
-    .data-table tr:hover {
-        background: #f8f9fa;
-    }
-    
-    /* Loading Spinner */
-    .loading-spinner {
+    /* Loading spinner */
+    #loading {
         display: none;
         text-align: center;
         padding: 50px;
+        background: white;
+        border-radius: 10px;
+        margin-top: 20px;
     }
     
-    .loading-spinner.active {
-        display: block;
+    #loading.active {
+        display: block !important;
     }
     
-    .spinner {
-        border: 4px solid #f3f3f3;
-        border-top: 4px solid #667eea;
-        border-radius: 50%;
-        width: 50px;
-        height: 50px;
-        animation: spin 1s linear infinite;
-        margin: 0 auto;
+    /* Charts container */
+    .chart-grid {
+        display: grid !important;
+        grid-template-columns: 1fr 1fr !important;
+        gap: 30px !important;
+        margin-top: 30px !important;
     }
     
-    @keyframes spin {
-        0% { transform: rotate(0deg); }
-        100% { transform: rotate(360deg); }
-    }
-
-    @keyframes slideIn {
-        from {
-            transform: translateX(100%);
-            opacity: 0;
-        }
-        to {
-            transform: translateX(0);
-            opacity: 1;
-        }
-    }
-
-    .notification {
-        position: fixed;
-        bottom: 20px;
-        right: 20px;
-        padding: 10px 20px;
-        border-radius: 5px;
-        z-index: 9999;
-        animation: slideIn 0.3s ease-out;
-        font-size: 14px;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-    }
-
-    .notification.success {
-        background: #28a745;
-        color: white;
-    }
-
-    .notification.error {
-        background: #dc3545;
-        color: white;
-    }
-
-    /* Grafik ekleme butonu için özel stil */
-    #quill-toolbar button[onclick*="insertChart"] {
-        background: #f8f9fa;
-        border: 1px solid #dee2e6;
-        padding: 3px 10px;
-        cursor: pointer;
-        font-size: 14px;
-        border-radius: 4px;
-        margin-left: 5px;
-    }
-
-    #quill-toolbar button[onclick*="insertChart"]:hover {
-        background: #e9ecef;
-    }
-
-    /* Loading overlay - veri yüklenirken */
-    .loading-overlay {
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: rgba(0, 0, 0, 0.5);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        z-index: 9998;
-    }
-
-    .loading-overlay.hidden {
-        display: none;
-    }
-
-    /* Otomatik kaydetme göstergesi */
-    .auto-save-indicator {
-        position: fixed;
-        top: 70px;
-        right: 20px;
-        padding: 5px 10px;
-        background: #ffc107;
-        color: #333;
-        border-radius: 20px;
-        font-size: 12px;
-        display: none;
-    }
-
-    .auto-save-indicator.active {
-        display: block;
-        animation: pulse 1s infinite;
-    }
-
-    @keyframes pulse {
-        0% { opacity: 1; }
-        50% { opacity: 0.5; }
-        100% { opacity: 1; }
-    }
-
-    /* Firma logosu için stil */
-    .firm-logo {
-        max-width: 200px;
-        height: auto;
-        margin: 0 auto 30px;
-        display: block;
-    }
-
-    /* Export butonları hover efekti */
-    .btn-export {
-        transition: all 0.3s ease;
-    }
-
-    .btn-export:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 5px 15px rgba(0,0,0,0.3);
-    }
-
-    /* Tab içeriği geçiş animasyonu */
-    .tab-content {
-        opacity: 0;
-        transition: opacity 0.3s ease;
-    }
-
-    .tab-content.active {
-        opacity: 1;
-    }
-
-    /* Grafik container'ları için responsive düzenleme */
     @media (max-width: 768px) {
-        .chart-container {
+        .chart-grid {
+            grid-template-columns: 1fr !important;
+        }
+        
+        .control-grid {
             grid-template-columns: 1fr !important;
         }
         
         .summary-cards {
             grid-template-columns: 1fr !important;
-        }
-        
-        .control-row {
-            flex-direction: column;
-        }
-        
-        .control-group {
-            width: 100%;
-            margin-bottom: 10px;
-        }
-    }
-
-    /* Print stilleri - PDF export için */
-    @media print {
-        .control-panel,
-        .report-tabs,
-        .export-buttons,
-        .btn-export,
-        #quill-toolbar {
-            display: none !important;
-        }
-        
-        .editor-container {
-            box-shadow: none !important;
-            border: none !important;
-        }
-        
-        .editor-content {
-            padding: 0 !important;
-        }
-        
-        body {
-            font-size: 12pt;
-        }
-        
-        h1 { font-size: 18pt; }
-        h2 { font-size: 16pt; }
-        h3 { font-size: 14pt; }
-        
-        table {
-            page-break-inside: avoid;
         }
     }
 </style>
@@ -646,7 +454,178 @@
         <p style="margin-top: 20px; color: #666;">Rapor oluşturuluyor...</p>
     </div>
 </div>
-
+<div class="report-page">
+    <h1><i class="fas fa-chart-line"></i> Karbon Emisyon Rapor Yönetimi</h1>
+    
+    <!-- Control Panel -->
+    <article class="control-panel">
+        <div class="control-grid">
+            <div>
+                <label>Firma Seçimi</label>
+                <select id="firm-select">
+                    <option value="">Firma Seçiniz</option>
+                    {% for firm in firms %}
+                    <option value="{{ firm.id }}">{{ firm.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div>
+                <label>Başlangıç Tarihi</label>
+                <input type="date" id="start-date">
+            </div>
+            
+            <div>
+                <label>Bitiş Tarihi</label>
+                <input type="date" id="end-date">
+            </div>
+            
+            <div>
+                <label>Rapor Tipi</label>
+                <select id="report-type">
+                    <option value="detailed">Detaylı Rapor</option>
+                    <option value="summary">Özet Rapor</option>
+                    <option value="executive">Yönetici Özeti</option>
+                    <option value="custom">Özelleştirilmiş Rapor</option>
+                </select>
+            </div>
+            
+            <div>
+                <button id="generate-report" class="btn-generate">
+                    <i class="fas fa-magic"></i> Rapor Oluştur
+                </button>
+            </div>
+        </div>
+    </article>
+    
+    <!-- Tab System -->
+    <nav class="report-tabs">
+        <button class="active" data-tab="preview">
+            <i class="fas fa-eye"></i> Önizleme
+        </button>
+        <button data-tab="editor">
+            <i class="fas fa-edit"></i> Düzenle
+        </button>
+        <button data-tab="charts">
+            <i class="fas fa-chart-pie"></i> Grafikler
+        </button>
+        <button data-tab="data">
+            <i class="fas fa-table"></i> Veri Tabloları
+        </button>
+    </nav>
+    
+    <!-- Tab Contents -->
+    <div id="tab-preview" class="tab-content active">
+        <!-- Summary Cards -->
+        <div class="summary-cards">
+            <article class="summary-card">
+                <h4>Kapsam 1</h4>
+                <div class="value" id="scope1-value">0</div>
+                <div class="unit">tCO₂e</div>
+            </article>
+            <article class="summary-card">
+                <h4>Kapsam 2</h4>
+                <div class="value" id="scope2-value">0</div>
+                <div class="unit">tCO₂e</div>
+            </article>
+            <article class="summary-card">
+                <h4>Kapsam 3</h4>
+                <div class="value" id="scope3-value">0</div>
+                <div class="unit">tCO₂e</div>
+            </article>
+            <article class="summary-card">
+                <h4>Toplam Emisyon</h4>
+                <div class="value" id="total-value">0</div>
+                <div class="unit">tCO₂e</div>
+            </article>
+        </div>
+        
+        <!-- Preview Content -->
+        <article class="editor-container">
+            <div class="editor-toolbar">
+                <h3>Rapor Önizleme</h3>
+                <div class="export-buttons">
+                    <button class="btn-export btn-pdf" onclick="exportPDF()">
+                        <i class="fas fa-file-pdf"></i> PDF İndir
+                    </button>
+                    <button class="btn-export btn-word" onclick="exportWord()">
+                        <i class="fas fa-file-word"></i> Word İndir
+                    </button>
+                    <button class="btn-export btn-excel" onclick="exportExcel()">
+                        <i class="fas fa-file-excel"></i> Excel İndir
+                    </button>
+                </div>
+            </div>
+            <div id="preview-content" class="editor-content">
+                <p style="color: #999; text-align: center; padding: 50px;">
+                    Rapor oluşturmak için yukarıdaki formu doldurun ve "Rapor Oluştur" butonuna tıklayın.
+                </p>
+            </div>
+        </article>
+    </div>
+    
+    <div id="tab-editor" class="tab-content">
+        <article class="editor-container">
+            <div class="editor-toolbar">
+                <h3>Rapor Düzenleyici</h3>
+                <div class="export-buttons">
+                    <button class="btn-export btn-pdf" onclick="saveEditorContent()">
+                        <i class="fas fa-save"></i> Kaydet
+                    </button>
+                </div>
+            </div>
+            <!-- Quill Editor -->
+            <div id="quill-toolbar">
+                <select class="ql-header">
+                    <option selected>Normal</option>
+                    <option value="1">Başlık 1</option>
+                    <option value="2">Başlık 2</option>
+                    <option value="3">Başlık 3</option>
+                </select>
+                <button class="ql-bold"></button>
+                <button class="ql-italic"></button>
+                <button class="ql-underline"></button>
+                <button class="ql-list" value="ordered"></button>
+                <button class="ql-list" value="bullet"></button>
+                <button class="ql-clean"></button>
+            </div>
+            <div id="quill-editor"></div>
+        </article>
+    </div>
+    
+    <div id="tab-charts" class="tab-content">
+        <article class="editor-container">
+            <div class="editor-content">
+                <h3>Emisyon Dağılım Grafikleri</h3>
+                <div class="chart-grid">
+                    <div>
+                        <canvas id="pieChart"></canvas>
+                    </div>
+                    <div>
+                        <canvas id="barChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </article>
+    </div>
+    
+    <div id="tab-data" class="tab-content">
+        <article class="editor-container">
+            <div class="editor-content">
+                <h3>Detaylı Veri Tabloları</h3>
+                <div id="data-tables-container">
+                    <!-- Dinamik olarak doldurulacak -->
+                </div>
+            </div>
+        </article>
+    </div>
+    
+    <!-- Loading -->
+    <div id="loading">
+        <div class="spinner"></div>
+        <p>Rapor oluşturuluyor...</p>
+    </div>
+</div>
 <!-- Quill Editor JS -->
 <script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
 
@@ -657,28 +636,20 @@ let reportData = null;
 let pieChartInstance = null;
 let barChartInstance = null;
 
-// Sayfa yüklendiğinde
 document.addEventListener('DOMContentLoaded', function() {
-    // Quill editörü başlat
     initQuillEditor();
-    
-    // Tab sistemi
     initTabSystem();
     
-    // Event listeners
     document.getElementById('generate-report').addEventListener('click', generateReport);
     
-    // Bugünün tarihini varsayılan olarak ayarla
     const today = new Date().toISOString().split('T')[0];
     document.getElementById('end-date').value = today;
     
-    // 1 yıl öncesini başlangıç tarihi yap
     const oneYearAgo = new Date();
     oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
     document.getElementById('start-date').value = oneYearAgo.toISOString().split('T')[0];
 });
 
-// Quill Editor Başlatma
 function initQuillEditor() {
     quillEditor = new Quill('#quill-editor', {
         theme: 'snow',
@@ -689,28 +660,26 @@ function initQuillEditor() {
     });
 }
 
-// Tab Sistemi
 function initTabSystem() {
-    const tabButtons = document.querySelectorAll('.tab-btn');
+    const tabButtons = document.querySelectorAll('.report-tabs button');
     
     tabButtons.forEach(btn => {
         btn.addEventListener('click', function() {
-            // Aktif tab'ı kaldır
-            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.report-tabs button').forEach(b => b.classList.remove('active'));
             document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
             
-            // Yeni tab'ı aktif et
             this.classList.add('active');
             const tabId = 'tab-' + this.dataset.tab;
             document.getElementById(tabId).classList.add('active');
             
-            // Grafikleri yenile (eğer grafik tab'ı açıldıysa)
             if (this.dataset.tab === 'charts' && reportData) {
                 updateCharts();
             }
         });
     });
 }
+
+
 
 // Rapor Oluşturma
 function generateReport() {
