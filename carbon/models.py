@@ -252,7 +252,19 @@ class Report(models.Model):
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, verbose_name="Oluşturan")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    
+
+    content = models.TextField(blank=True, null=True, verbose_name='Rapor İçeriği')
+    report_type = models.CharField(
+        max_length=50,
+        choices=[
+            ('detailed', 'Detaylı'),
+            ('summary', 'Özet'),
+            ('executive', 'Yönetici Özeti'),
+            ('custom', 'Özel')
+        ],
+        default='detailed'
+    )
+
     class Meta:
         verbose_name = "Karbon Raporu"
         verbose_name_plural = "Karbon Raporları"

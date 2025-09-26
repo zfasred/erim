@@ -39,5 +39,6 @@ urlpatterns = [
     path('reports/create/', views.report_create_view, name='report-create'),
     path('reports/<int:report_id>/editor/', views.report_editor_view, name='report-editor'),
     path('reports/<int:report_id>/data/', views.get_report_data_ajax, name='report-data-ajax'),
+    path('api/save-report/', views.save_report, name='save-report'),
 
 ]

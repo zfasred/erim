@@ -117,8 +117,7 @@ def api_get_coefficient_names(request):
 
 @login_required
 def api_report_data(request):
-    """Rapor verilerini getir ve HESAPLA"""
-    
+    """Rapor verilerini JSON olarak döndür"""
     firm_id = request.GET.get('firm')
     start_date = request.GET.get('start_date')
     end_date = request.GET.get('end_date')
@@ -630,6 +629,20 @@ def calculate_emission_for_report(scope, subscope, data, date):
         
     return 0  # VARSAYILAN DÖNÜŞ DEĞERİ
 
+def save_report(request):
+    """Raporu veritabanına kaydet"""
+    if request.method == 'POST':
+        data = json.loads(request.body)
+        
+        report = Report.objects.create(
+            firm_id=data['firm_id'],
+            report_date=datetime.now(),
+            content=data['content'],
+            report_type=data['report_type'],
+            generated_by=request.user
+        )
+        
+        return JsonResponse({'success': True, 'report_id': report.id})
 
 @login_required
 def api_get_input(request, input_id):
@@ -1361,26 +1374,16 @@ def input_list_view(request):
 @login_required
 @permission_required('carbon.view_report_carbon', raise_exception=True)
 def report_list_view(request):
-    """Karbon rapor sayfası - ESKİ ÇALIŞAN HALİ"""
-    
-    # Kullanıcının erişebileceği firmalar
-    if request.user.is_superuser:
-        user_firms = Firm.objects.all()
-    elif hasattr(request.user, 'user'):
-        user_firms = Firm.objects.filter(user_associations__user=request.user.user)
-    else:
-        user_firms = Firm.objects.filter(user_associations__user=request.user)
-    
-    # Bugünün tarihi
-    from datetime import date
-    today = date.today()
+    """Rapor listesi ve yönetim sayfası"""
+    firms = Firm.objects.filter(
+        userfirmaccess__user=request.user,
+        userfirmaccess__can_view=True
+    )
     
     context = {
-        'user_firms': user_firms,
-        'today': today,
+        'firms': firms,
     }
-    
-    return render(request, 'carbon/report.html', context)  # DİKKAT: report.html kullanılıyor!
+    return render(request, 'carbon/report.html', context)
 
 @login_required
 def report_create_view(request):
