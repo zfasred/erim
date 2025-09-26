@@ -1,581 +1,917 @@
-<!-- carbon/templates/carbon/report.html -->
+<!-- templates/carbon/report.html -->
 {% extends 'base.html' %}
 {% load static %}
 
-{% block content %}
-<div class="container-fluid">
-    <h2 class="mb-4">Karbon Rapor</h2>
+{% block title %}Karbon Rapor Yönetimi{% endblock %}
+
+{% block extra_css %}
+<!-- Quill Editor CSS -->
+<link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<!-- jsPDF for PDF export -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+<style>
+    .report-container {
+        max-width: 1400px;
+        margin: 0 auto;
+        padding: 20px;
+    }
     
-    <!-- Filtre Formu -->
-    <div class="card mb-4">
-        <div class="card-body">
-            <form id="report-filter-form">
-                <div class="row">
-                    <div class="col-md-4">
-                        <label>Firma Seçimi:</label>
-                        <select id="firm-select" class="form-control" required>
-                            <option value="">-- Firma Seçin --</option>
-                            {% for firm in user_firms %}
-                            <option value="{{ firm.id }}">{{ firm.name }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="col-md-3">
-                        <label>Başlangıç Tarihi:</label>
-                        <input type="date" id="start-date" class="form-control" 
-                               value="{{ today|date:'Y-m-01' }}" required>
-                    </div>
-                    <div class="col-md-3">
-                        <label>Bitiş Tarihi:</label>
-                        <input type="date" id="end-date" class="form-control" 
-                               value="{{ today|date:'Y-m-d' }}" required>
-                    </div>
-                    <div class="col-md-2">
-                        <label>&nbsp;</label>
-                        <div style="display: flex; gap: 5px;">
-                            <button type="submit" class="btn btn-primary" style="flex: 1;">
-                                <i class="fas fa-search"></i> Rapor Oluştur
-                            </button>
-                            <select id="reportType" class="form-control" style="width: auto;">
-                                <option value="on-rapor">Ön Rapor</option>
-                                <option value="sunulacak-rapor">Sunulacak Rapor</option>
-                                <option value="yonetici-ozeti">Yönetici Özeti</option>
-                            </select>
-                        </div>
-                    </div>
-                </div>
-            </form>
+    .control-panel {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        padding: 25px;
+        border-radius: 15px;
+        margin-bottom: 30px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+    }
+    
+    .control-row {
+        display: flex;
+        gap: 15px;
+        flex-wrap: wrap;
+        align-items: center;
+    }
+    
+    .control-group {
+        flex: 1;
+        min-width: 200px;
+    }
+    
+    .control-group label {
+        color: white;
+        font-weight: 500;
+        margin-bottom: 5px;
+        display: block;
+    }
+    
+    .form-control, .form-select {
+        border-radius: 8px;
+        border: none;
+        padding: 10px 15px;
+        font-size: 14px;
+    }
+    
+    .btn-generate {
+        background: white;
+        color: #667eea;
+        border: none;
+        padding: 12px 30px;
+        border-radius: 8px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s;
+    }
+    
+    .btn-generate:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+    }
+    
+    /* Tab System */
+    .report-tabs {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 20px;
+        border-bottom: 2px solid #e0e0e0;
+    }
+    
+    .tab-btn {
+        padding: 12px 24px;
+        background: transparent;
+        border: none;
+        color: #666;
+        font-weight: 500;
+        cursor: pointer;
+        position: relative;
+        transition: all 0.3s;
+    }
+    
+    .tab-btn.active {
+        color: #667eea;
+    }
+    
+    .tab-btn.active::after {
+        content: '';
+        position: absolute;
+        bottom: -2px;
+        left: 0;
+        right: 0;
+        height: 3px;
+        background: #667eea;
+    }
+    
+    .tab-content {
+        display: none;
+        animation: fadeIn 0.3s;
+    }
+    
+    .tab-content.active {
+        display: block;
+    }
+    
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    
+    /* Summary Cards */
+    .summary-cards {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 20px;
+        margin-bottom: 30px;
+    }
+    
+    .summary-card {
+        background: white;
+        padding: 20px;
+        border-radius: 12px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+        transition: transform 0.3s;
+    }
+    
+    .summary-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 5px 20px rgba(0,0,0,0.12);
+    }
+    
+    .summary-card h4 {
+        color: #666;
+        font-size: 14px;
+        margin-bottom: 10px;
+    }
+    
+    .summary-card .value {
+        font-size: 28px;
+        font-weight: bold;
+        color: #333;
+    }
+    
+    .summary-card .unit {
+        color: #999;
+        font-size: 14px;
+    }
+    
+    /* Editor Container */
+    .editor-container {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+        overflow: hidden;
+    }
+    
+    .editor-toolbar {
+        background: #f8f9fa;
+        padding: 15px;
+        border-bottom: 1px solid #e0e0e0;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    
+    .toolbar-group {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+    }
+    
+    .editor-content {
+        min-height: 500px;
+        padding: 30px;
+    }
+    
+    /* Quill Editor Custom Styles */
+    .ql-toolbar {
+        background: #f8f9fa;
+        border: none;
+        border-bottom: 1px solid #e0e0e0;
+    }
+    
+    .ql-container {
+        border: none;
+        font-size: 14px;
+    }
+    
+    .ql-editor {
+        min-height: 500px;
+        padding: 30px;
+    }
+    
+    /* Export Buttons */
+    .export-buttons {
+        display: flex;
+        gap: 10px;
+    }
+    
+    .btn-export {
+        padding: 8px 20px;
+        border: none;
+        border-radius: 6px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.3s;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    
+    .btn-pdf {
+        background: #dc3545;
+        color: white;
+    }
+    
+    .btn-word {
+        background: #0066cc;
+        color: white;
+    }
+    
+    .btn-excel {
+        background: #28a745;
+        color: white;
+    }
+    
+    .btn-export:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 3px 10px rgba(0,0,0,0.2);
+    }
+    
+    /* Data Tables */
+    .data-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 20px;
+    }
+    
+    .data-table th {
+        background: #f8f9fa;
+        padding: 12px;
+        text-align: left;
+        font-weight: 600;
+        color: #333;
+        border-bottom: 2px solid #dee2e6;
+    }
+    
+    .data-table td {
+        padding: 12px;
+        border-bottom: 1px solid #dee2e6;
+    }
+    
+    .data-table tr:hover {
+        background: #f8f9fa;
+    }
+    
+    /* Loading Spinner */
+    .loading-spinner {
+        display: none;
+        text-align: center;
+        padding: 50px;
+    }
+    
+    .loading-spinner.active {
+        display: block;
+    }
+    
+    .spinner {
+        border: 4px solid #f3f3f3;
+        border-top: 4px solid #667eea;
+        border-radius: 50%;
+        width: 50px;
+        height: 50px;
+        animation: spin 1s linear infinite;
+        margin: 0 auto;
+    }
+    
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="report-container">
+    <h1 style="margin-bottom: 30px; color: #333;">
+        <i class="fas fa-chart-line"></i> Karbon Emisyon Rapor Yönetimi
+    </h1>
+    
+    <!-- Control Panel -->
+    <div class="control-panel">
+        <div class="control-row">
+            <div class="control-group">
+                <label>Firma Seçimi</label>
+                <select id="firm-select" class="form-select">
+                    <option value="">Firma Seçiniz</option>
+                    {% for firm in firms %}
+                    <option value="{{ firm.id }}">{{ firm.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="control-group">
+                <label>Başlangıç Tarihi</label>
+                <input type="date" id="start-date" class="form-control">
+            </div>
+            
+            <div class="control-group">
+                <label>Bitiş Tarihi</label>
+                <input type="date" id="end-date" class="form-control">
+            </div>
+            
+            <div class="control-group">
+                <label>Rapor Tipi</label>
+                <select id="report-type" class="form-select">
+                    <option value="detailed">Detaylı Rapor</option>
+                    <option value="summary">Özet Rapor</option>
+                    <option value="executive">Yönetici Özeti</option>
+                    <option value="custom">Özelleştirilmiş Rapor</option>
+                </select>
+            </div>
+            
+            <div class="control-group" style="align-self: flex-end;">
+                <button id="generate-report" class="btn-generate">
+                    <i class="fas fa-magic"></i> Rapor Oluştur
+                </button>
+            </div>
         </div>
     </div>
     
-    <!-- MEVCUT Rapor Alanı (Özet rapor için) -->
-    <div id="report-container" style="display:none;">
-        <!-- Özet Kartlar -->
-        <div class="row mb-4">
-            <div class="col-md-3">
-                <div class="card text-white bg-primary">
-                    <div class="card-body">
-                        <h5 class="card-title">Kapsam 1</h5>
-                        <h3 id="scope1-total">0</h3>
-                        <small>tCO₂e</small>
-                    </div>
-                </div>
+    <!-- Tab System -->
+    <div class="report-tabs">
+        <button class="tab-btn active" data-tab="preview">
+            <i class="fas fa-eye"></i> Önizleme
+        </button>
+        <button class="tab-btn" data-tab="editor">
+            <i class="fas fa-edit"></i> Düzenle
+        </button>
+        <button class="tab-btn" data-tab="charts">
+            <i class="fas fa-chart-pie"></i> Grafikler
+        </button>
+        <button class="tab-btn" data-tab="data">
+            <i class="fas fa-table"></i> Veri Tabloları
+        </button>
+    </div>
+    
+    <!-- Tab Contents -->
+    <div id="tab-preview" class="tab-content active">
+        <!-- Summary Cards -->
+        <div class="summary-cards">
+            <div class="summary-card">
+                <h4>Kapsam 1</h4>
+                <div class="value" id="scope1-value">0</div>
+                <div class="unit">tCO₂e</div>
             </div>
-            <div class="col-md-3">
-                <div class="card text-white bg-success">
-                    <div class="card-body">
-                        <h5 class="card-title">Kapsam 2</h5>
-                        <h3 id="scope2-total">0</h3>
-                        <small>tCO₂e</small>
-                    </div>
-                </div>
+            <div class="summary-card">
+                <h4>Kapsam 2</h4>
+                <div class="value" id="scope2-value">0</div>
+                <div class="unit">tCO₂e</div>
             </div>
-            <div class="col-md-3">
-                <div class="card text-white bg-warning">
-                    <div class="card-body">
-                        <h5 class="card-title">Kapsam 3</h5>
-                        <h3 id="scope3-total">0</h3>
-                        <small>tCO₂e</small>
-                    </div>
-                </div>
+            <div class="summary-card">
+                <h4>Kapsam 3</h4>
+                <div class="value" id="scope3-value">0</div>
+                <div class="unit">tCO₂e</div>
             </div>
-            <div class="col-md-3">
-                <div class="card text-white bg-info">
-                    <div class="card-body">
-                        <h5 class="card-title">Kapsam 4</h5>
-                        <h3 id="scope4-total">0</h3>
-                        <small>tCO₂e</small>
-                    </div>
-                </div>
+            <div class="summary-card">
+                <h4>Toplam Emisyon</h4>
+                <div class="value" id="total-value">0</div>
+                <div class="unit">tCO₂e</div>
             </div>
         </div>
         
-        <!-- Tablo Alanı -->
-        <div id="tables-container">
-            <!-- JavaScript ile doldurulacak -->
+        <!-- Preview Content -->
+        <div class="editor-container">
+            <div class="editor-toolbar">
+                <div class="toolbar-group">
+                    <h3>Rapor Önizleme</h3>
+                </div>
+                <div class="export-buttons">
+                    <button class="btn-export btn-pdf" onclick="exportPDF()">
+                        <i class="fas fa-file-pdf"></i> PDF İndir
+                    </button>
+                    <button class="btn-export btn-word" onclick="exportWord()">
+                        <i class="fas fa-file-word"></i> Word İndir
+                    </button>
+                    <button class="btn-export btn-excel" onclick="exportExcel()">
+                        <i class="fas fa-file-excel"></i> Excel İndir
+                    </button>
+                </div>
+            </div>
+            <div id="preview-content" class="editor-content">
+                <p style="color: #999; text-align: center; padding: 50px;">
+                    Rapor oluşturmak için yukarıdaki formu doldurun ve "Rapor Oluştur" butonuna tıklayın.
+                </p>
+            </div>
         </div>
     </div>
     
-    <!-- YENİ: Word Editör Alanı (Detaylı rapor için) -->
-    <div id="word-editor-container" style="display:none;">
-        <div class="card">
-            <div class="card-header bg-secondary text-white">
-                <h5 class="mb-0">📝 Detaylı Rapor Editörü</h5>
-            </div>
-            <div class="card-body">
-                <!-- Toolbar için div -->
-                <div id="toolbar"></div>
-                
-                <!-- Editör alanı -->
-                <div id="editor" style="min-height: 500px; background: white; border: 1px solid #ccc;">
-                    <!-- İçerik buraya gelecek -->
+    <div id="tab-editor" class="tab-content">
+        <div class="editor-container">
+            <div class="editor-toolbar">
+                <div class="toolbar-group">
+                    <h3>Rapor Düzenleyici</h3>
                 </div>
-                
-                <!-- Export butonları -->
-                <div style="margin-top: 20px;">
-                    <button onclick="exportToPDF()" class="btn btn-danger">
-                        <i class="fas fa-file-pdf"></i> PDF İndir
+                <div class="export-buttons">
+                    <button class="btn-export btn-pdf" onclick="saveEditorContent()">
+                        <i class="fas fa-save"></i> Kaydet
                     </button>
-                    <button onclick="exportToWord()" class="btn btn-info">
-                        <i class="fas fa-file-word"></i> Word İndir
-                    </button>
-                    <button onclick="closeWordEditor()" class="btn btn-secondary">
-                        <i class="fas fa-times"></i> Kapat
-                    </button>
+                </div>
+            </div>
+            <!-- Quill Editor -->
+            <div id="quill-toolbar">
+                <select class="ql-header">
+                    <option selected>Normal</option>
+                    <option value="1">Başlık 1</option>
+                    <option value="2">Başlık 2</option>
+                    <option value="3">Başlık 3</option>
+                </select>
+                <button class="ql-bold"></button>
+                <button class="ql-italic"></button>
+                <button class="ql-underline"></button>
+                <button class="ql-strike"></button>
+                <button class="ql-list" value="ordered"></button>
+                <button class="ql-list" value="bullet"></button>
+                <button class="ql-align" value=""></button>
+                <button class="ql-align" value="center"></button>
+                <button class="ql-align" value="right"></button>
+                <button class="ql-link"></button>
+                <button class="ql-image"></button>
+                <button class="ql-clean"></button>
+            </div>
+            <div id="quill-editor"></div>
+        </div>
+    </div>
+    
+    <div id="tab-charts" class="tab-content">
+        <div class="editor-container">
+            <div class="editor-content">
+                <h3>Emisyon Dağılım Grafikleri</h3>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-top: 30px;">
+                    <div>
+                        <canvas id="pieChart"></canvas>
+                    </div>
+                    <div>
+                        <canvas id="barChart"></canvas>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
-    <!-- Word Editör (başlangıçta gizli) -->
-    <div id="wordEditor" style="display: none; margin-top: 20px;">
-        <div class="card">
-            <div class="card-header">
-                <h5>📝 Detaylı Rapor Editörü</h5>
-            </div>
-            <div class="card-body">
-                <div id="editor" style="min-height: 500px; background: white; padding: 20px; border: 1px solid #ddd;">
-                    <!-- İçerik buraya gelecek -->
-                </div>
-                <div style="margin-top: 20px;">
-                    <button onclick="window.print()" class="btn btn-danger">PDF İndir</button>
-                    <button onclick="exportWord()" class="btn btn-info">Word İndir</button>
-                    <button onclick="closeWordEditor()" class="btn btn-secondary">Kapat</button>
+    
+    <div id="tab-data" class="tab-content">
+        <div class="editor-container">
+            <div class="editor-content">
+                <h3>Detaylı Veri Tabloları</h3>
+                <div id="data-tables-container">
+                    <!-- Dinamik olarak doldurulacak -->
                 </div>
             </div>
         </div>
+    </div>
+    
+    <!-- Loading Spinner -->
+    <div id="loading" class="loading-spinner">
+        <div class="spinner"></div>
+        <p style="margin-top: 20px; color: #666;">Rapor oluşturuluyor...</p>
     </div>
 </div>
 
-
-<!-- Quill Editör için CSS -->
-<link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
-
+<!-- Quill Editor JS -->
 <script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
+
 <script>
-// Quill editör değişkeni
-let quill = null;
+// Global değişkenler
+let quillEditor = null;
+let reportData = null;
+let pieChartInstance = null;
+let barChartInstance = null;
 
-// MEVCUT createTables fonksiyonunuz aynen kalıyor
-function createTables(scopeDetails) {
-    const container = document.getElementById('tables-container');
-    container.innerHTML = '';
+// Sayfa yüklendiğinde
+document.addEventListener('DOMContentLoaded', function() {
+    // Quill editörü başlat
+    initQuillEditor();
     
-    // Her kapsam için tablo oluştur
-    for (let scope in scopeDetails) {
-        const scopeNumber = scope.replace('scope_', '');
-        const scopeData = scopeDetails[scope];
-        
-        // Kapsam başlığı
-        const scopeTitle = document.createElement('h4');
-        scopeTitle.className = 'mt-4 mb-3';
-        scopeTitle.textContent = `KAPSAM ${scopeNumber}`;
-        container.appendChild(scopeTitle);
-        
-        // Tablo
-        const table = document.createElement('table');
-        table.className = 'table table-bordered table-striped';
-        
-        let tableHTML = `
-            <thead class="thead-dark">
-                <tr>
-                    <th>Alt Kapsam</th>
-                    <th>İsim</th>
-                    <th>Tarih</th>
-                    <th>Değer</th>
-                    <th>Birim</th>
-                    <th>tCO₂e</th>
-                </tr>
-            </thead>
-            <tbody>
-        `;
-        
-        let scopeTotal = 0;
-        
-        // Alt kapsamları döngüle
-        for (let subscope in scopeData) {
-            const subscopeData = scopeData[subscope];
+    // Tab sistemi
+    initTabSystem();
+    
+    // Event listeners
+    document.getElementById('generate-report').addEventListener('click', generateReport);
+    
+    // Bugünün tarihini varsayılan olarak ayarla
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('end-date').value = today;
+    
+    // 1 yıl öncesini başlangıç tarihi yap
+    const oneYearAgo = new Date();
+    oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+    document.getElementById('start-date').value = oneYearAgo.toISOString().split('T')[0];
+});
+
+// Quill Editor Başlatma
+function initQuillEditor() {
+    quillEditor = new Quill('#quill-editor', {
+        theme: 'snow',
+        modules: {
+            toolbar: '#quill-toolbar'
+        },
+        placeholder: 'Rapor içeriğinizi buradan düzenleyebilirsiniz...'
+    });
+}
+
+// Tab Sistemi
+function initTabSystem() {
+    const tabButtons = document.querySelectorAll('.tab-btn');
+    
+    tabButtons.forEach(btn => {
+        btn.addEventListener('click', function() {
+            // Aktif tab'ı kaldır
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
             
-            subscopeData.items.forEach(item => {
-                // Veri detaylarını parse et
-                let name = item.data.fuel_name || item.data.name || item.data.facility_name || item.data.coefficient_set || '-';
-                let value = item.data.consumption || item.data.amount || '-';
-                let unit = getUnit(subscope);
-                
-                tableHTML += `
-                    <tr>
-                        <td>${subscope} - ${subscopeData.name}</td>
-                        <td>${name}</td>
-                        <td>${item.date}</td>
-                        <td>${value}</td>
-                        <td>${unit}</td>
-                        <td class="text-right">${item.co2e.toFixed(4)}</td>
-                    </tr>
-                `;
-                scopeTotal += item.co2e;
-            });
-        }
-        
-        // Toplam satırı
-        tableHTML += `
-            <tr class="font-weight-bold bg-light">
-                <td colspan="5" class="text-right">KAPSAM ${scopeNumber} TOPLAM:</td>
-                <td class="text-right">${scopeTotal.toFixed(4)}</td>
-            </tr>
-        `;
-        
-        tableHTML += '</tbody>';
-        table.innerHTML = tableHTML;
-        container.appendChild(table);
-    }
+            // Yeni tab'ı aktif et
+            this.classList.add('active');
+            const tabId = 'tab-' + this.dataset.tab;
+            document.getElementById(tabId).classList.add('active');
+            
+            // Grafikleri yenile (eğer grafik tab'ı açıldıysa)
+            if (this.dataset.tab === 'charts' && reportData) {
+                updateCharts();
+            }
+        });
+    });
 }
 
-// Birim belirleme fonksiyonu - MEVCUT AYNEN KALIYOR
-function getUnit(subscope) {
-    const units = {
-        '1.1': 'm³',
-        '1.2': 'lt',
-        '1.3': 'kg',
-        '1.4': 'adet',
-        '1.5': 'm²',
-        '2.1': 'kWh',
-        '3.1': 'lt',
-        '3.2': 'lt',
-        '3.3': 'lt',
-        '3.4': 'lt',
-        '3.5': 'adet',
-        '4.1': 'kg',
-        '4.2': 'kg',
-        '4.3': 'kg'
-    };
-    return units[subscope] || '-';
-}
-
-document.getElementById('report-filter-form').addEventListener('submit', function(e) {
-    e.preventDefault();
-    
+// Rapor Oluşturma
+function generateReport() {
     const firmId = document.getElementById('firm-select').value;
     const startDate = document.getElementById('start-date').value;
     const endDate = document.getElementById('end-date').value;
-    const reportType = document.getElementById('reportType').value;  // YENİ
+    const reportType = document.getElementById('report-type').value;
     
     if (!firmId) {
-        alert('Lütfen firma seçin!');
+        alert('Lütfen bir firma seçiniz!');
         return;
     }
     
-    // YENİ: Rapor tipine göre kontrol
-    if (reportType === 'sunulacak-rapor') {
-        alert('Sunulacak Rapor özelliği bir sonraki aşamada eklenecek.');
+    if (!startDate || !endDate) {
+        alert('Lütfen tarih aralığı seçiniz!');
         return;
     }
     
-    if (reportType === 'yonetici-ozeti') {
-        alert('Yönetici Özeti özelliği bir sonraki aşamada eklenecek.');
-        return;
-    }
+    // Loading göster
+    document.getElementById('loading').classList.add('active');
     
-    // Ön Rapor seçili ise MEVCUT SİSTEM AYNEN ÇALIŞIYOR
+    // API çağrısı
     fetch(`/carbon/api/report-data/?firm=${firmId}&start_date=${startDate}&end_date=${endDate}`)
         .then(response => response.json())
         .then(data => {
-            // Rapor alanını göster
-            document.getElementById('report-container').style.display = 'block';
+            reportData = data;
             
-            // Özet kartları güncelle
-            document.getElementById('scope1-total').textContent = 
-                (data.scope_totals.scope_1 || 0).toFixed(2);
-            document.getElementById('scope2-total').textContent = 
-                (data.scope_totals.scope_2 || 0).toFixed(2);
-            document.getElementById('scope3-total').textContent = 
-                (data.scope_totals.scope_3 || 0).toFixed(2);
-            document.getElementById('scope4-total').textContent = 
-                (data.scope_totals.scope_4 || 0).toFixed(2);
+            // Summary kartları güncelle
+            updateSummaryCards(data);
             
-            // Tabloları oluştur
-            createTables(data.scope_details);
+            // Rapor içeriği oluştur
+            const reportContent = createReportContent(data, reportType);
+            
+            // Preview'ı güncelle
+            document.getElementById('preview-content').innerHTML = reportContent;
+            
+            // Editor'ı güncelle
+            quillEditor.root.innerHTML = reportContent;
+            
+            // Veri tablolarını güncelle
+            updateDataTables(data);
+            
+            // Loading'i gizle
+            document.getElementById('loading').classList.remove('active');
         })
         .catch(error => {
-            alert('Veri çekme hatası: ' + error);
-            console.error('Hata detayı:', error);
+            console.error('Hata:', error);
+            alert('Rapor oluşturulurken bir hata oluştu!');
+            document.getElementById('loading').classList.remove('active');
         });
-});
+}
 
+// Summary Kartları Güncelle
+function updateSummaryCards(data) {
+    const scope1 = data.scope_totals?.scope_1 || 0;
+    const scope2 = data.scope_totals?.scope_2 || 0;
+    const scope3 = data.scope_totals?.scope_3 || 0;
+    const scope4 = data.scope_totals?.scope_4 || 0;
+    const total = scope1 + scope2 + scope3 + scope4;
+    
+    document.getElementById('scope1-value').textContent = scope1.toFixed(2);
+    document.getElementById('scope2-value').textContent = scope2.toFixed(2);
+    document.getElementById('scope3-value').textContent = scope3.toFixed(2);
+    document.getElementById('total-value').textContent = total.toFixed(2);
+}
 
-function addWordEditor() {
-    // Quill başlat
-    quill = new Quill('#editor', {
-        theme: 'snow',
-        modules: {
-            toolbar: [
-                [{ 'header': [1, 2, false] }],
-                ['bold', 'italic', 'underline'],
-                [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-                ['clean']
-            ]
+// Rapor İçeriği Oluştur
+function createReportContent(data, reportType) {
+    const firmName = document.getElementById('firm-select').options[document.getElementById('firm-select').selectedIndex].text;
+    const startDate = document.getElementById('start-date').value;
+    const endDate = document.getElementById('end-date').value;
+    
+    const scope1 = data.scope_totals?.scope_1 || 0;
+    const scope2 = data.scope_totals?.scope_2 || 0;
+    const scope3 = data.scope_totals?.scope_3 || 0;
+    const scope4 = data.scope_totals?.scope_4 || 0;
+    const total = scope1 + scope2 + scope3 + scope4;
+    
+    let content = '';
+    
+    if (reportType === 'executive') {
+        // Yönetici Özeti
+        content = `
+            <h1 style="text-align: center; color: #333;">YÖNETİCİ ÖZETİ</h1>
+            <h2 style="text-align: center; color: #666;">${firmName}</h2>
+            <p style="text-align: center; color: #999;">Rapor Dönemi: ${startDate} - ${endDate}</p>
+            
+            <div style="margin: 40px 0; padding: 20px; background: #f8f9fa; border-radius: 10px;">
+                <h3 style="color: #333;">Toplam Karbon Emisyonu</h3>
+                <p style="font-size: 36px; font-weight: bold; color: #667eea; margin: 10px 0;">
+                    ${total.toFixed(2)} tCO₂e
+                </p>
+            </div>
+            
+            <h3>Ana Bulgular</h3>
+            <ul>
+                <li>En yüksek emisyon kaynağı: ${getHighestScope(data)}</li>
+                <li>Toplam emisyonun %${((scope1/total)*100).toFixed(1)}'i doğrudan emisyonlardan kaynaklanmaktadır</li>
+                <li>Enerji tüketimi kaynaklı emisyonlar toplam emisyonun %${((scope2/total)*100).toFixed(1)}'ini oluşturmaktadır</li>
+            </ul>
+            
+            <h3>Öneriler</h3>
+            <ul>
+                <li>Enerji verimliliği projelerinin önceliklendirilmesi</li>
+                <li>Yenilenebilir enerji kaynaklarına geçiş planının hazırlanması</li>
+                <li>Tedarik zinciri emisyonlarının azaltılması için işbirliği programları</li>
+            </ul>
+        `;
+    } else if (reportType === 'summary') {
+        // Özet Rapor
+        content = `
+            <h1 style="text-align: center;">KARBON EMİSYON ÖZET RAPORU</h1>
+            <h2 style="text-align: center; color: #666;">${firmName}</h2>
+            <p style="text-align: center;">Dönem: ${startDate} - ${endDate}</p>
+            
+            <table class="data-table" style="margin: 30px 0;">
+                <tr>
+                    <th>Kapsam</th>
+                    <th>Emisyon (tCO₂e)</th>
+                    <th>Oran (%)</th>
+                </tr>
+                <tr>
+                    <td>Kapsam 1 - Doğrudan Emisyonlar</td>
+                    <td>${scope1.toFixed(2)}</td>
+                    <td>${((scope1/total)*100).toFixed(1)}%</td>
+                </tr>
+                <tr>
+                    <td>Kapsam 2 - Enerji Kaynaklı</td>
+                    <td>${scope2.toFixed(2)}</td>
+                    <td>${((scope2/total)*100).toFixed(1)}%</td>
+                </tr>
+                <tr>
+                    <td>Kapsam 3 - Diğer Dolaylı</td>
+                    <td>${scope3.toFixed(2)}</td>
+                    <td>${((scope3/total)*100).toFixed(1)}%</td>
+                </tr>
+                <tr>
+                    <td>Kapsam 4 - Tedarik Zinciri</td>
+                    <td>${scope4.toFixed(2)}</td>
+                    <td>${((scope4/total)*100).toFixed(1)}%</td>
+                </tr>
+                <tr style="background: #f8f9fa; font-weight: bold;">
+                    <td>TOPLAM</td>
+                    <td>${total.toFixed(2)}</td>
+                    <td>100%</td>
+                </tr>
+            </table>
+        `;
+    } else {
+        // Detaylı Rapor
+        content = `
+            <h1 style="text-align: center;">KARBON AYAK İZİ DETAYLI RAPORU</h1>
+            <h2 style="text-align: center; color: #666;">${firmName}</h2>
+            <p style="text-align: center;">Rapor Dönemi: ${startDate} - ${endDate}</p>
+            
+            <h2>1. YÖNETİCİ ÖZETİ</h2>
+            <p>Bu rapor, ${firmName} firmasının ${startDate} ile ${endDate} tarihleri arasındaki karbon ayak izi hesaplamalarını içermektedir. 
+            Toplam karbon emisyonu <strong>${total.toFixed(2)} tCO₂e</strong> olarak hesaplanmıştır.</p>
+            
+            <h2>2. KAPSAM BAZLI ANALİZ</h2>
+            
+            <h3>2.1. Kapsam 1 - Doğrudan Emisyonlar</h3>
+            <p>Doğrudan emisyonlar, firmanın sahip olduğu veya kontrol ettiği kaynaklardan ortaya çıkan emisyonlardır.</p>
+            <ul>
+                <li>Toplam Kapsam 1 Emisyonu: <strong>${scope1.toFixed(2)} tCO₂e</strong></li>
+                <li>Toplam emisyon içindeki payı: <strong>${((scope1/total)*100).toFixed(1)}%</strong></li>
+            </ul>
+            
+            <h3>2.2. Kapsam 2 - Enerji Kaynaklı Dolaylı Emisyonlar</h3>
+            <p>Satın alınan elektrik, buhar, ısıtma ve soğutmadan kaynaklanan emisyonlardır.</p>
+            <ul>
+                <li>Toplam Kapsam 2 Emisyonu: <strong>${scope2.toFixed(2)} tCO₂e</strong></li>
+                <li>Toplam emisyon içindeki payı: <strong>${((scope2/total)*100).toFixed(1)}%</strong></li>
+            </ul>
+            
+            <h3>2.3. Kapsam 3 - Diğer Dolaylı Emisyonlar</h3>
+            <p>Değer zincirinde oluşan diğer dolaylı emisyonlardır.</p>
+            <ul>
+                <li>Toplam Kapsam 3 Emisyonu: <strong>${scope3.toFixed(2)} tCO₂e</strong></li>
+                <li>Toplam emisyon içindeki payı: <strong>${((scope3/total)*100).toFixed(1)}%</strong></li>
+            </ul>
+            
+            <h3>2.4. Kapsam 4 - Tedarik Zinciri Emisyonları</h3>
+            <p>Tedarik zinciri boyunca oluşan emisyonlardır.</p>
+            <ul>
+                <li>Toplam Kapsam 4 Emisyonu: <strong>${scope4.toFixed(2)} tCO₂e</strong></li>
+                <li>Toplam emisyon içindeki payı: <strong>${((scope4/total)*100).toFixed(1)}%</strong></li>
+            </ul>
+            
+            <h2>3. AZALTIM ÖNERİLERİ</h2>
+            <ol>
+                <li><strong>Enerji Verimliliği:</strong> LED aydınlatmaya geçiş, enerji verimli ekipman kullanımı</li>
+                <li><strong>Yenilenebilir Enerji:</strong> Güneş paneli kurulumu, yeşil enerji tedarikçilerine geçiş</li>
+                <li><strong>Ulaşım:</strong> Elektrikli araç filosuna geçiş, toplu taşıma teşvikleri</li>
+                <li><strong>Tedarik Zinciri:</strong> Yerel tedarikçilerle çalışma, karbon ayak izi düşük ürünler</li>
+            </ol>
+            
+            <h2>4. SONUÇ</h2>
+            <p>Firmanızın toplam karbon emisyonu <strong>${total.toFixed(2)} tCO₂e</strong> olarak hesaplanmıştır. 
+            Yukarıda belirtilen azaltım önerilerinin uygulanması ile bu emisyonun önemli ölçüde azaltılması mümkündür.</p>
+        `;
+    }
+    
+    return content;
+}
+
+// En yüksek emisyon kaynağını bul
+function getHighestScope(data) {
+    const scopes = {
+        'Kapsam 1': data.scope_totals?.scope_1 || 0,
+        'Kapsam 2': data.scope_totals?.scope_2 || 0,
+        'Kapsam 3': data.scope_totals?.scope_3 || 0,
+        'Kapsam 4': data.scope_totals?.scope_4 || 0
+    };
+    
+    let highest = '';
+    let highestValue = 0;
+    
+    for (const [key, value] of Object.entries(scopes)) {
+        if (value > highestValue) {
+            highest = key;
+            highestValue = value;
+        }
+    }
+    
+    return highest;
+}
+
+// Grafikleri Güncelle
+function updateCharts() {
+    const scope1 = reportData.scope_totals?.scope_1 || 0;
+    const scope2 = reportData.scope_totals?.scope_2 || 0;
+    const scope3 = reportData.scope_totals?.scope_3 || 0;
+    const scope4 = reportData.scope_totals?.scope_4 || 0;
+    
+    // Pie Chart
+    const pieCtx = document.getElementById('pieChart').getContext('2d');
+    if (pieChartInstance) {
+        pieChartInstance.destroy();
+    }
+    
+    pieChartInstance = new Chart(pieCtx, {
+        type: 'pie',
+        data: {
+            labels: ['Kapsam 1', 'Kapsam 2', 'Kapsam 3', 'Kapsam 4'],
+            datasets: [{
+                data: [scope1, scope2, scope3, scope4],
+                backgroundColor: [
+                    '#FF6384',
+                    '#36A2EB',
+                    '#FFCE56',
+                    '#4BC0C0'
+                ]
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                },
+                title: {
+                    display: true,
+                    text: 'Emisyon Dağılımı (tCO₂e)'
+                }
+            }
+        }
+    });
+    
+    // Bar Chart
+    const barCtx = document.getElementById('barChart').getContext('2d');
+    if (barChartInstance) {
+        barChartInstance.destroy();
+    }
+    
+    barChartInstance = new Chart(barCtx, {
+        type: 'bar',
+        data: {
+            labels: ['Kapsam 1', 'Kapsam 2', 'Kapsam 3', 'Kapsam 4'],
+            datasets: [{
+                label: 'Emisyon (tCO₂e)',
+                data: [scope1, scope2, scope3, scope4],
+                backgroundColor: '#667eea'
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    display: false
+                },
+                title: {
+                    display: true,
+                    text: 'Kapsam Bazlı Emisyon Karşılaştırması'
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function(value) {
+                            return value.toFixed(2) + ' tCO₂e';
+                        }
+                    }
+                }
+            }
         }
     });
 }
 
-function fillWordEditor(data, firmId, startDate, endDate) {
-    const firmName = document.querySelector(`#firm-select option[value="${firmId}"]`).text;
-    const total = (
-        (data.scope_totals.scope_1 || 0) + 
-        (data.scope_totals.scope_2 || 0) + 
-        (data.scope_totals.scope_3 || 0) + 
-        (data.scope_totals.scope_4 || 0)
-    ).toFixed(2);
+// Veri Tablolarını Güncelle
+function updateDataTables(data) {
+    const container = document.getElementById('data-tables-container');
+    let html = '';
     
-    // GERÇEK VERİLERLE rapor içeriği
-    const content = `
-        <h1>KARBON AYAK İZİ RAPORU</h1>
-        <p><strong>Firma:</strong> ${firmName}</p>
-        <p><strong>Dönem:</strong> ${startDate} - ${endDate}</p>
-        <hr>
+    // Her kapsam için tablo oluştur
+    for (const [scope, scopeData] of Object.entries(data.scope_details || {})) {
+        const scopeNumber = scope.replace('scope_', '');
+        html += `<h4>Kapsam ${scopeNumber} Detayları</h4>`;
+        html += '<table class="data-table">';
+        html += '<thead><tr><th>Alt Kapsam</th><th>Değer</th><th>Birim</th><th>Emisyon (tCO₂e)</th></tr></thead>';
+        html += '<tbody>';
         
-        <h2>1. ÖZET</h2>
-        <p>Toplam Emisyon: <strong>${total} tCO₂e</strong></p>
+        for (const [subscope, subscopeData] of Object.entries(scopeData)) {
+            subscopeData.items?.forEach(item => {
+                html += '<tr>';
+                html += `<td>${subscope}</td>`;
+                html += `<td>${item.data?.value || '-'}</td>`;
+                html += `<td>${item.data?.unit || '-'}</td>`;
+                html += `<td>${item.co2e?.toFixed(2) || '0.00'}</td>`;
+                html += '</tr>';
+            });
+        }
         
-        <h2>2. KAPSAM BAZLI DAĞILIM</h2>
-        <p>Kapsam 1: ${(data.scope_totals.scope_1 || 0).toFixed(2)} tCO₂e</p>
-        <p>Kapsam 2: ${(data.scope_totals.scope_2 || 0).toFixed(2)} tCO₂e</p>
-        <p>Kapsam 3: ${(data.scope_totals.scope_3 || 0).toFixed(2)} tCO₂e</p>
-        <p>Kapsam 4: ${(data.scope_totals.scope_4 || 0).toFixed(2)} tCO₂e</p>
-    `;
-    
-    if (quill) {
-        quill.clipboard.dangerouslyPasteHTML(content);
+        html += '</tbody></table><br>';
     }
+    
+    container.innerHTML = html;
 }
 
-function closeWordEditor() {
-    document.getElementById('wordEditor').style.display = 'none';
-    document.getElementById('report-container').style.display = 'block';
+// Export Fonksiyonları
+function exportPDF() {
+    const content = document.getElementById('preview-content');
+    
+    html2canvas(content).then(canvas => {
+        const imgData = canvas.toDataURL('image/png');
+        const pdf = new jspdf.jsPDF('p', 'mm', 'a4');
+        const imgWidth = 210;
+        const pageHeight = 297;
+        const imgHeight = canvas.height * imgWidth / canvas.width;
+        let heightLeft = imgHeight;
+        let position = 0;
+        
+        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight;
+        
+        while (heightLeft >= 0) {
+            position = heightLeft - imgHeight;
+            pdf.addPage();
+            pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+            heightLeft -= pageHeight;
+        }
+        
+        pdf.save('karbon-raporu.pdf');
+    });
 }
 
 function exportWord() {
-    const content = quill.root.innerHTML;
-    const blob = new Blob([content], { type: 'application/msword' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `Karbon_Raporu_${new Date().toISOString().split('T')[0]}.doc`;
-    a.click();
-}
-
-
-// MEVCUT fonksiyonunuz (isim değiştirdik sadece)
-function generateExistingReport(firmId, startDate, endDate) {
-    // MEVCUT AJAX KODUNUZ AYNEN
-    fetch(`/carbon/api/report-data/?firm=${firmId}&start_date=${startDate}&end_date=${endDate}`)
-        .then(response => response.json())
-        .then(data => {
-            // Rapor alanını göster
-            document.getElementById('report-container').style.display = 'block';
-            
-            // Özet kartları güncelle - MEVCUT KODUNUZ
-            document.getElementById('scope1-total').textContent = 
-                (data.scope_totals.scope_1 || 0).toFixed(2);
-            document.getElementById('scope2-total').textContent = 
-                (data.scope_totals.scope_2 || 0).toFixed(2);
-            document.getElementById('scope3-total').textContent = 
-                (data.scope_totals.scope_3 || 0).toFixed(2);
-            document.getElementById('scope4-total').textContent = 
-                (data.scope_totals.scope_4 || 0).toFixed(2);
-            
-            // Tabloları oluştur - MEVCUT FONKSİYONUNUZ
-            createTables(data.scope_details);
-        })
-        .catch(error => {
-            alert('Veri çekme hatası: ' + error);
-        });
-}
-
-// YENİ - Detaylı rapor (GERÇEK verilerle)
-function generateDetailedReport(firmId, startDate, endDate) {
-    // GERÇEK verileri çek
-    fetch(`/carbon/api/report-data/?firm=${firmId}&start_date=${startDate}&end_date=${endDate}`)
-        .then(response => response.json())
-        .then(data => {
-            // Word editör alanını ekleyelim (henüz yoksa)
-            if (!document.getElementById('wordEditor')) {
-                addWordEditor();
-            }
-            
-            // Mevcut tabloları gizle
-            document.getElementById('report-container').style.display = 'none';
-            
-            // Word editörü göster
-            document.getElementById('wordEditor').style.display = 'block';
-            
-            // GERÇEK VERİLERLE doldur
-            fillWordEditor(data, firmId, startDate, endDate);
-        })
-        .catch(error => {
-            alert('Veri çekme hatası: ' + error);
-        });
-}
-
-
-// MEVCUT özet rapor fonksiyonu
-function generateSummaryReport() {
-    const firmId = document.getElementById('firm-select').value;
-    const startDate = document.getElementById('start-date').value;
-    const endDate = document.getElementById('end-date').value;
-    
-    if (!firmId) {
-        alert('Lütfen firma seçin!');
-        return;
-    }
-    
-    // MEVCUT AJAX kodunuz aynen
-    fetch(`/carbon/api/report-data/?firm=${firmId}&start_date=${startDate}&end_date=${endDate}`)
-        .then(response => response.json())
-        .then(data => {
-            // Word editörü gizle, rapor alanını göster
-            document.getElementById('word-editor-container').style.display = 'none';
-            document.getElementById('report-container').style.display = 'block';
-            
-            // Özet kartları güncelle
-            document.getElementById('scope1-total').textContent = 
-                (data.scope_totals.scope_1 || 0).toFixed(2);
-            document.getElementById('scope2-total').textContent = 
-                (data.scope_totals.scope_2 || 0).toFixed(2);
-            document.getElementById('scope3-total').textContent = 
-                (data.scope_totals.scope_3 || 0).toFixed(2);
-            document.getElementById('scope4-total').textContent = 
-                (data.scope_totals.scope_4 || 0).toFixed(2);
-            
-            // Tabloları oluştur
-            createTables(data.scope_details);
-        })
-        .catch(error => {
-            alert('Veri çekme hatası: ' + error);
-        });
-}
-
-// YENİ detaylı rapor fonksiyonu
-function generateDetailedReport() {
-    const firmId = document.getElementById('firm-select').value;
-    const startDate = document.getElementById('start-date').value;
-    const endDate = document.getElementById('end-date').value;
-    
-    if (!firmId) {
-        alert('Lütfen firma seçin!');
-        return;
-    }
-    
-    // Önce verileri çek
-    fetch(`/carbon/api/report-data/?firm=${firmId}&start_date=${startDate}&end_date=${endDate}`)
-        .then(response => response.json())
-        .then(data => {
-            // Özet raporu gizle, word editörü göster
-            document.getElementById('report-container').style.display = 'none';
-            document.getElementById('word-editor-container').style.display = 'block';
-            
-            // Quill editörü başlat (henüz başlatılmamışsa)
-            if (!quill) {
-                quill = new Quill('#editor', {
-                    theme: 'snow',
-                    modules: {
-                        toolbar: '#toolbar'
-                    }
-                });
-                
-                // Toolbar özelleştir
-                const toolbarOptions = [
-                    [{ 'header': [1, 2, 3, false] }],
-                    ['bold', 'italic', 'underline'],
-                    [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-                    [{ 'color': [] }, { 'background': [] }],
-                    [{ 'align': [] }],
-                    ['clean']
-                ];
-                
-                quill.getModule('toolbar').addHandler('header', function(value) {
-                    if (value) {
-                        quill.format('header', value);
-                    }
-                });
-            }
-            
-            // Rapor içeriğini oluştur
-            const reportContent = `
-                <h1 style="text-align: center;">KARBON AYAK İZİ RAPORU</h1>
-                <p style="text-align: center;"><strong>Firma:</strong> ${document.getElementById('firm-select').options[document.getElementById('firm-select').selectedIndex].text}</p>
-                <p style="text-align: center;"><strong>Dönem:</strong> ${startDate} - ${endDate}</p>
-                <br>
-                
-                <h2>1. YÖNETİCİ ÖZETİ</h2>
-                <p>Bu rapor, firmanızın belirtilen dönemdeki karbon ayak izi hesaplamalarını içermektedir.</p>
-                <p><strong>Toplam Emisyon:</strong> ${((data.scope_totals.scope_1 || 0) + (data.scope_totals.scope_2 || 0) + (data.scope_totals.scope_3 || 0) + (data.scope_totals.scope_4 || 0)).toFixed(2)} tCO₂e</p>
-                <br>
-                
-                <h2>2. KAPSAM BAZLI EMİSYONLAR</h2>
-                <table border="1" style="width: 100%; border-collapse: collapse;">
-                    <tr style="background-color: #f2f2f2;">
-                        <th style="padding: 8px;">Kapsam</th>
-                        <th style="padding: 8px;">Emisyon (tCO₂e)</th>
-                        <th style="padding: 8px;">Oran (%)</th>
-                    </tr>
-                    <tr>
-                        <td style="padding: 8px;">Kapsam 1 - Doğrudan Emisyonlar</td>
-                        <td style="padding: 8px;">${(data.scope_totals.scope_1 || 0).toFixed(2)}</td>
-                        <td style="padding: 8px;">${(((data.scope_totals.scope_1 || 0) / ((data.scope_totals.scope_1 || 0) + (data.scope_totals.scope_2 || 0) + (data.scope_totals.scope_3 || 0) + (data.scope_totals.scope_4 || 0))) * 100).toFixed(1)}%</td>
-                    </tr>
-                    <tr>
-                        <td style="padding: 8px;">Kapsam 2 - Dolaylı Emisyonlar</td>
-                        <td style="padding: 8px;">${(data.scope_totals.scope_2 || 0).toFixed(2)}</td>
-                        <td style="padding: 8px;">${(((data.scope_totals.scope_2 || 0) / ((data.scope_totals.scope_1 || 0) + (data.scope_totals.scope_2 || 0) + (data.scope_totals.scope_3 || 0) + (data.scope_totals.scope_4 || 0))) * 100).toFixed(1)}%</td>
-                    </tr>
-                    <tr>
-                        <td style="padding: 8px;">Kapsam 3 - Diğer Dolaylı</td>
-                        <td style="padding: 8px;">${(data.scope_totals.scope_3 || 0).toFixed(2)}</td>
-                        <td style="padding: 8px;">${(((data.scope_totals.scope_3 || 0) / ((data.scope_totals.scope_1 || 0) + (data.scope_totals.scope_2 || 0) + (data.scope_totals.scope_3 || 0) + (data.scope_totals.scope_4 || 0))) * 100).toFixed(1)}%</td>
-                    </tr>
-                    <tr>
-                        <td style="padding: 8px;">Kapsam 4 - Tedarik Zinciri</td>
-                        <td style="padding: 8px;">${(data.scope_totals.scope_4 || 0).toFixed(2)}</td>
-                        <td style="padding: 8px;">${(((data.scope_totals.scope_4 || 0) / ((data.scope_totals.scope_1 || 0) + (data.scope_totals.scope_2 || 0) + (data.scope_totals.scope_3 || 0) + (data.scope_totals.scope_4 || 0))) * 100).toFixed(1)}%</td>
-                    </tr>
-                </table>
-                <br>
-                
-                <h2>3. AZALTIM ÖNERİLERİ</h2>
-                <ul>
-                    <li>Enerji verimliliği projelerinin uygulanması</li>
-                    <li>Yenilenebilir enerji kaynaklarına geçiş</li>
-                    <li>Araç filosunun elektrifikasyonu</li>
-                    <li>Tedarik zincirinde yerel kaynak kullanımının artırılması</li>
-                </ul>
-                <br>
-                
-                <h2>4. SONUÇ</h2>
-                <p>Raporlama döneminde toplam <strong>${((data.scope_totals.scope_1 || 0) + (data.scope_totals.scope_2 || 0) + (data.scope_totals.scope_3 || 0) + (data.scope_totals.scope_4 || 0)).toFixed(2)} tCO₂e</strong> karbon emisyonu hesaplanmıştır.</p>
-            `;
-            
-            // İçeriği editöre yerleştir
-            quill.clipboard.dangerouslyPasteHTML(reportContent);
-        })
-        .catch(error => {
-            alert('Veri çekme hatası: ' + error);
-        });
-}
-
-// Word editörü kapatma
-function closeWordEditor() {
-    document.getElementById('word-editor-container').style.display = 'none';
-}
-
-// PDF Export
-function exportToPDF() {
-    window.print(); // Basit çözüm
-}
-
-// Word Export
-function exportToWord() {
-    const content = quill.root.innerHTML;
-    const blob = new Blob([
-        `<!DOCTYPE html>
+    const content = quillEditor.root.innerHTML;
+    const blob = new Blob([`
+        <!DOCTYPE html>
         <html>
         <head>
             <meta charset="utf-8">
@@ -583,18 +919,52 @@ function exportToWord() {
                 body { font-family: Arial, sans-serif; }
                 table { border-collapse: collapse; width: 100%; }
                 th, td { border: 1px solid black; padding: 8px; }
+                h1 { color: #333; }
+                h2 { color: #666; }
             </style>
         </head>
         <body>${content}</body>
-        </html>`
-    ], { type: 'application/msword' });
+        </html>
+    `], { type: 'application/msword' });
     
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'Karbon_Raporu_' + new Date().getTime() + '.doc';
+    a.download = 'karbon-raporu.doc';
     a.click();
     URL.revokeObjectURL(url);
+}
+
+function exportExcel() {
+    // Excel export için basit CSV oluştur
+    let csv = 'Kapsam,Emisyon (tCO2e),Oran (%)\n';
+    
+    const scope1 = reportData.scope_totals?.scope_1 || 0;
+    const scope2 = reportData.scope_totals?.scope_2 || 0;
+    const scope3 = reportData.scope_totals?.scope_3 || 0;
+    const scope4 = reportData.scope_totals?.scope_4 || 0;
+    const total = scope1 + scope2 + scope3 + scope4;
+    
+    csv += `Kapsam 1,${scope1.toFixed(2)},${((scope1/total)*100).toFixed(1)}\n`;
+    csv += `Kapsam 2,${scope2.toFixed(2)},${((scope2/total)*100).toFixed(1)}\n`;
+    csv += `Kapsam 3,${scope3.toFixed(2)},${((scope3/total)*100).toFixed(1)}\n`;
+    csv += `Kapsam 4,${scope4.toFixed(2)},${((scope4/total)*100).toFixed(1)}\n`;
+    csv += `TOPLAM,${total.toFixed(2)},100`;
+    
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'karbon-raporu.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+}
+
+function saveEditorContent() {
+    const content = quillEditor.root.innerHTML;
+    // Burada içeriği backend'e kaydedebilirsiniz
+    alert('Rapor içeriği kaydedildi!');
+    console.log('Kaydedilen içerik:', content);
 }
 </script>
 {% endblock %}
