@@ -448,6 +448,98 @@ let reportData = null;
 let pieChartInstance = null;
 let barChartInstance = null;
 
+const unitMapping = {
+    '1.1': { // Sabit Yanma
+        consumption: 'm³',
+        fuel_name: '',
+        default: 'm³'
+    },
+    '1.2': { // Mobil Yanma
+        consumption: 'litre',  // ✅ DÜZELTİLDİ
+        fuel_name: '',
+        default: 'litre'
+    },
+    '1.3': { // Proses Emisyonları
+        amount: 'kg',
+        process_name: '',
+        material: '',
+        default: 'kg'
+    },
+    '1.4': { // Kaçak Emisyonlar - ✅ DÜZELTİLDİ
+        gas_capacity: 'kg',
+        quantity: 'adet',
+        leak_rate: '%',
+        gwp: 'GWP',
+        default: 'adet'  // Ana birim adet
+    },
+    '1.5': { // AFOLU
+        area: 'm²',
+        land_type: '',
+        default: 'm²'
+    },
+    '2.1': { // Elektrik Tüketimi
+        consumption: 'kWh',
+        facility_name: '',
+        default: 'kWh'
+    },
+    '2.2': { // Isı/Buhar
+        consumption: 'kWh',
+        default: 'kWh'
+    },
+    '3.1': { // Satın Alınan Mal Taşımacılığı
+        consumption: 'litre',
+        name: '',
+        default: 'litre'
+    },
+    '3.2': { // Satılan Mal Taşımacılığı
+        consumption: 'litre',
+        name: '',
+        default: 'litre'
+    },
+    '3.3': { // Kiralanan Varlıklar
+        consumption: 'litre',
+        name: '',
+        default: 'litre'
+    },
+    '3.4': { // İşe Gidiş Geliş
+        consumption: 'litre',
+        name: '',
+        default: 'litre'
+    },
+    '3.5': { // İş Seyahatleri - ✅ DÜZELTİLDİ
+        consumption_flight: 'km',
+        consumption_hotel: 'gece',
+        consumption_vehicle: 'km',
+        consumption: 'birim',
+        name: '',
+        default: 'birim'
+    },
+    '4.1': { // Satın Alınan Mal ve Hizmetler
+        amount: 'kg',
+        name: '',
+        material_type: '',
+        default: 'kg'
+    },
+    '4.2': { // Sermaye Malları
+        amount: 'kg',
+        name: '',
+        default: 'kg'
+    },
+    '4.3': { // Kullanılan Hizmetler - ✅ DÜZELTİLDİ
+        consumption: {
+            'water': 'm³',
+            'wastewater': 'm³',
+            'solid_waste': 'ton',
+            'electricity_loss': 'MWh',  // MWh olarak güncellendi
+            'service': 'TL',
+            'default': 'birim'
+        },
+        name: '',
+        service_type: '',
+        default: 'birim'
+    }
+};
+
 // Sayfa yüklendiğinde
 document.addEventListener('DOMContentLoaded', function() {
     initQuillEditor();
@@ -808,7 +900,85 @@ function updateCharts() {
     });
 }
 
-// Veri Tablolarını Güncelle - EKSİK FONKSİYON EKLENDİ
+// Değeri ve birimi formatla
+function formatValueWithUnit(data, subscope) {
+    const units = unitMapping[subscope] || {};
+    
+    // Ana değeri bul - öncelik sırasıyla kontrol et
+    let value = null;
+    let unit = '';
+    let displayText = '';
+    
+    // En yaygın alanları kontrol et
+    if (data.consumption !== undefined && data.consumption !== null) {
+        value = data.consumption;
+        
+        // Kapsam 3.5 özel durumu - seyahat türüne göre birim
+        if (subscope === '3.5' && data.travel_type) {
+            unit = units[`consumption_${data.travel_type}`] || units.consumption || units.default;
+        }
+        // Kapsam 4.3 özel durumu - hizmet türüne göre birim
+        else if (subscope === '4.3' && data.service_type && typeof units.consumption === 'object') {
+            unit = units.consumption[data.service_type] || units.consumption.default;
+        }
+        else {
+            unit = units.consumption || units.default;
+        }
+    }
+    else if (data.amount !== undefined && data.amount !== null) {
+        value = data.amount;
+        unit = units.amount || units.default;
+    }
+    else if (data.area !== undefined && data.area !== null) {
+        value = data.area;
+        unit = units.area || units.default;
+    }
+    else if (data.distance !== undefined && data.distance !== null) {
+        value = data.distance;
+        unit = units.distance || units.default;
+    }
+    // Kapsam 1.4 özel durumu - birden fazla değer göster
+    else if (subscope === '1.4') {
+        // Ana değer olarak adet × kapasite hesapla
+        if (data.quantity && data.gas_capacity) {
+            const totalCapacity = parseFloat(data.quantity) * parseFloat(data.gas_capacity);
+            value = totalCapacity;
+            unit = 'kg (toplam)';
+            
+            // Detaylı açıklama için ek bilgi
+            const parts = [];
+            parts.push(`${data.quantity} adet × ${data.gas_capacity} kg`);
+            if (data.leak_rate) parts.push(`Kaçak: %${data.leak_rate}`);
+            if (data.gwp) parts.push(`GWP: ${data.gwp}`);
+            
+            // Alternatif gösterim için yorum satırı olarak bırakıyorum
+            // displayText = parts.join(', ');
+            // return { value: displayText, unit: '-' };
+        } else {
+            // Sadece adet varsa
+            value = data.quantity || data.gas_capacity || '-';
+            unit = data.quantity ? 'adet' : 'kg';
+        }
+    }
+    
+    // Değer yoksa
+    if (value === null || value === undefined || value === '') {
+        return { value: '-', unit: '-' };
+    }
+    
+    // Sayısal değerleri formatla
+    if (!isNaN(value)) {
+        const numValue = parseFloat(value);
+        // Büyük sayılar için binlik ayracı ekle
+        displayText = numValue.toLocaleString('tr-TR', { maximumFractionDigits: 2 });
+    } else {
+        displayText = value;
+    }
+    
+    return { value: displayText, unit: unit || '-' };
+}
+
+// Veri Tablolarını Güncelle - GELİŞTİRİLMİŞ FONKSİYON
 function updateDataTables(data) {
     const container = document.getElementById('data-tables-container');
     let html = '';
@@ -816,31 +986,131 @@ function updateDataTables(data) {
     // Her kapsam için tablo oluştur
     for (const [scope, scopeData] of Object.entries(data.scope_details || {})) {
         const scopeNumber = scope.replace('scope_', '');
-        html += `<h4>Kapsam ${scopeNumber} Detayları</h4>`;
+        html += `<h4 class="mt-4 mb-2">Kapsam ${scopeNumber} Detayları</h4>`;
         html += '<table class="data-table">';
-        html += '<thead><tr><th>Alt Kapsam</th><th>Tarih</th><th>Değer</th><th>Birim</th><th>Emisyon (tCO₂e)</th></tr></thead>';
+        html += '<thead><tr><th>Alt Kapsam</th><th>Tarih</th><th>Açıklama</th><th>Değer</th><th>Birim</th><th>Emisyon (tCO₂e)</th></tr></thead>';
         html += '<tbody>';
         
         for (const [subscope, subscopeData] of Object.entries(scopeData)) {
             subscopeData.items?.forEach(item => {
+                // Değer ve birimi al
+                const formatted = formatValueWithUnit(item.data, subscope);
+                
+                // Açıklama metni oluştur
+                let description = subscopeData.name || subscope;
+                
+                // İsim alanlarını ekle
+                if (item.data?.fuel_name) description += ` - ${item.data.fuel_name}`;
+                else if (item.data?.facility_name) description += ` - ${item.data.facility_name}`;
+                else if (item.data?.device_name) description += ` - ${item.data.device_name}`;
+                else if (item.data?.process_name) description += ` - ${item.data.process_name}`;
+                else if (item.data?.name) description += ` - ${item.data.name}`;
+                
+                // Gaz ve araç tipi gibi ek bilgiler
+                if (item.data?.gas_name) description += ` (${item.data.gas_name})`;
+                if (item.data?.travel_type) {
+                    const travelTypes = {
+                        'flight': 'Uçak',
+                        'hotel': 'Otel', 
+                        'vehicle': 'Araç'
+                    };
+                    description += ` (${travelTypes[item.data.travel_type] || item.data.travel_type})`;
+                }
+                if (item.data?.service_type) {
+                    const serviceTypes = {
+                        'electricity_loss': 'Elektrik Kayıp-Kaçak',
+                        'water': 'Su Temini',
+                        'wastewater': 'Atıksu',
+                        'solid_waste': 'Katı Atık',
+                        'service': 'Hizmet'
+                    };
+                    description += ` (${serviceTypes[item.data.service_type] || item.data.service_type})`;
+                }
+                
                 html += '<tr>';
-                html += `<td>${subscopeData.name || subscope}</td>`;
+                html += `<td>${description}</td>`;
                 html += `<td>${item.date || '-'}</td>`;
-                html += `<td>${item.data?.value || item.data?.consumption || '-'}</td>`;
-                html += `<td>${item.data?.unit || '-'}</td>`;
-                html += `<td>${item.co2e?.toFixed(2) || '0.00'}</td>`;
+                html += `<td>${item.data?.coefficient_set || '-'}</td>`;
+                html += `<td style="text-align: right;">${formatted.value}</td>`;
+                html += `<td>${formatted.unit}</td>`;
+                html += `<td style="text-align: right; font-weight: bold; color: #667eea;">${item.co2e?.toFixed(2) || '0.00'}</td>`;
                 html += '</tr>';
             });
         }
         
-        html += '</tbody></table><br>';
+        // Alt toplam satırı ekle
+        const scopeTotal = data.scope_totals?.[scope] || 0;
+        html += '<tr style="background: #f8f9fa; font-weight: bold;">';
+        html += `<td colspan="5">Kapsam ${scopeNumber} Toplamı</td>`;
+        html += `<td style="text-align: right; color: #667eea;">${scopeTotal.toFixed(2)}</td>`;
+        html += '</tr>';
+        
+        html += '</tbody></table>';
+    }
+    
+    // Genel toplam tablosu ekle
+    if (Object.keys(data.scope_totals || {}).length > 0) {
+        const total = Object.values(data.scope_totals).reduce((sum, val) => sum + val, 0);
+        html += `
+            <div class="mt-4 p-3" style="background: #667eea; color: white; border-radius: 8px;">
+                <h5 class="mb-0">TOPLAM EMİSYON: ${total.toFixed(2)} tCO₂e</h5>
+            </div>
+        `;
     }
     
     if (html === '') {
-        html = '<p style="text-align: center; color: #999;">Veri bulunamadı</p>';
+        html = '<p style="text-align: center; color: #999; padding: 40px;">Veri bulunamadı</p>';
     }
     
     container.innerHTML = html;
+}
+
+// Excel Export Fonksiyonu - GÜNCELLENDİ
+function exportToExcel() {
+    if (!reportData || !reportData.scope_details) {
+        alert('Önce rapor oluşturmanız gerekiyor!');
+        return;
+    }
+    
+    // UTF-8 BOM ekle (Excel'de Türkçe karakterler için)
+    let csvContent = '\ufeff';
+    csvContent += 'Kapsam,Alt Kapsam,Tarih,Açıklama,Katsayı Seti,Değer,Birim,Emisyon (tCO₂e)\n';
+    
+    for (const [scope, scopeData] of Object.entries(reportData.scope_details)) {
+        const scopeNumber = scope.replace('scope_', '');
+        
+        for (const [subscope, subscopeData] of Object.entries(scopeData)) {
+            subscopeData.items?.forEach(item => {
+                const formatted = formatValueWithUnit(item.data, subscope);
+                
+                // Açıklama oluştur
+                let description = subscopeData.name || subscope;
+                if (item.data?.fuel_name) description += ` - ${item.data.fuel_name}`;
+                else if (item.data?.facility_name) description += ` - ${item.data.facility_name}`;
+                else if (item.data?.device_name) description += ` - ${item.data.device_name}`;
+                else if (item.data?.name) description += ` - ${item.data.name}`;
+                
+                // CSV satırı ekle
+                csvContent += `"Kapsam ${scopeNumber}","${description}","${item.date || '-'}","${item.data?.coefficient_set || '-'}","${description}","${formatted.value}","${formatted.unit}","${item.co2e?.toFixed(2) || '0.00'}"\n`;
+            });
+        }
+    }
+    
+    // Toplam satırı ekle
+    const total = Object.values(reportData.scope_totals || {}).reduce((sum, val) => sum + val, 0);
+    csvContent += `"","","","","TOPLAM","","","${total.toFixed(2)}"\n`;
+    
+    // CSV dosyasını indir
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    const date = new Date().toISOString().slice(0, 10);
+    link.setAttribute('download', `karbon-raporu-${date}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
 }
 
 // Export Fonksiyonları
