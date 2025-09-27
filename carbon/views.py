@@ -579,45 +579,85 @@ def calculate_emission_for_report(scope, subscope, data, date):
             if not coefficient_set or consumption == 0:
                 return 0
             
-            # Servis tiplerine göre katsayı türü belirleme
+            # Servis tiplerine göre katsayı türü belirleme - VERİTABANINA UYGUN!
             coefficient_type_map = {
-                'water': 'EF_KG_CO2E_M3',
-                'wastewater': 'EF_KG_CO2E_M3',
+                'water': 'EF_KG_CO2E_M3',           # E harfi VAR!
+                'wastewater': 'EF_KG_CO2_M3',       # E harfi YOK!
                 'solid_waste': 'EF_KG_CO2_TON',
-                'electricity_loss': 'EF_TCO2_MWH',
-                'service': 'EF_KG_CO2_TL'  # TL bazlı hizmetler için
+                'electricity_loss': 'EF_KG_CO2E_KWH',  # KWH olarak değişti!
+                'service': None  # Yakıt bazlı hesaplama yapılacak
             }
             
-            coef_type = coefficient_type_map.get(service_type, 'EF_KG_CO2_KG')
+            coef_type = coefficient_type_map.get(service_type)
             
-            ef_coef = CarbonCoefficient.objects.filter(
-                scope='4',
-                subscope='4.3',
-                name=coefficient_set,
-                coefficient_type=coef_type,
-                valid_from__lte=date
-            ).filter(
-                Q(valid_to__gte=date) | Q(valid_to__isnull=True)
-            ).first()
-
-            if ef_coef:
-                ef = float(ef_coef.value)
+            # Hizmetler için yakıt bazlı hesaplama
+            if service_type == 'service':
+                yogunluk = 0
+                nkd = 0
+                ef_co2 = 0
+                ef_ch4 = 0
+                ef_n2o = 0
                 
-                # Birime göre hesaplama yap
-                if coef_type == 'EF_KG_CO2_TON':
-                    # kg CO2/ton -> direkt ton CO2 hesapla
-                    result = consumption * ef / 1000000  # ton'dan kg'a, sonra tCO2'ye
-                elif coef_type == 'EF_TCO2_MWH':
-                    # Zaten tCO2/MWh
-                    result = consumption * ef
-                elif coef_type in ['EF_KG_CO2E_M3', 'EF_KG_CO2_TL', 'EF_KG_CO2_KG']:
-                    # kg CO2e -> ton CO2e'ye çevir
-                    result = consumption * ef / 1000
-                else:
-                    result = consumption * ef / 1000
+                coefficients = CarbonCoefficient.objects.filter(
+                    scope='4',
+                    subscope='4.3',
+                    name=coefficient_set,
+                    valid_from__lte=date
+                ).filter(
+                    Q(valid_to__gte=date) | Q(valid_to__isnull=True)
+                )
+                
+                for coef in coefficients:
+                    if coef.coefficient_type == 'YOGUNLUK_TON_LT':
+                        yogunluk = float(coef.value)
+                    elif coef.coefficient_type == 'NKD':
+                        nkd = float(coef.value)
+                    elif coef.coefficient_type == 'EF_CO2':
+                        ef_co2 = float(coef.value)
+                    elif coef.coefficient_type == 'EF_CH4':
+                        ef_ch4 = float(coef.value)
+                    elif coef.coefficient_type == 'EF_N2O':
+                        ef_n2o = float(coef.value)
+                
+                if yogunluk and nkd:
+                    # TL bazlı hizmetler için litre cinsinden hesaplama
+                    co2_ton = consumption * yogunluk * nkd * ef_co2 * 0.000001
+                    ch4_ton = consumption * yogunluk * nkd * ef_ch4 * 0.000001
+                    n2o_ton = consumption * yogunluk * nkd * ef_n2o * 0.000001
+                    co2e_total = co2_ton + (ch4_ton * 27.9) + (n2o_ton * 273)
+                    return co2e_total
+            
+            # Diğer servis tipleri için normal hesaplama
+            elif coef_type:
+                ef_coef = CarbonCoefficient.objects.filter(
+                    scope='4',
+                    subscope='4.3',
+                    name=coefficient_set,
+                    coefficient_type=coef_type,
+                    valid_from__lte=date
+                ).filter(
+                    Q(valid_to__gte=date) | Q(valid_to__isnull=True)
+                ).first()
+                
+                if ef_coef:
+                    ef = float(ef_coef.value)
                     
-                return result
-
+                    # Birime göre hesaplama yap
+                    if coef_type == 'EF_KG_CO2_TON':
+                        # ton × (kgCO2/ton) / 1000000 = tCO2e
+                        result = consumption * ef / 1000000
+                    elif coef_type == 'EF_KG_CO2E_KWH':
+                        # MWh × 1000 × (kgCO2e/kWh) / 1000 = tCO2e
+                        # Yani MWh × kgCO2e/kWh = tCO2e
+                        result = consumption * ef / 1000
+                    elif coef_type in ['EF_KG_CO2E_M3', 'EF_KG_CO2_M3']:
+                        # m³ × (kgCO2/m³) / 1000 = tCO2
+                        result = consumption * ef / 1000
+                    else:
+                        result = consumption * ef / 1000
+                        
+                    return result
+            
             return 0
 
         # Kapsam 5, 6 için basit hesaplama
