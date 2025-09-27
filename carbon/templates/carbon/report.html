@@ -1038,7 +1038,7 @@ function formatEmissionValue(value) {
     // Büyük sayılar için binlik ayraç ile 3 basamak
     return numValue.toLocaleString('tr-TR', { 
         minimumFractionDigits: 3, 
-        maximumFractionDigits: 6
+        maximumFractionDigits: 3
     });
 }
 
@@ -1071,30 +1071,42 @@ function updateDataTables(data) {
             subscopeData.items?.forEach(item => {
                 // Değer ve birimi al
                 const formatted = formatValueWithUnit(item.data, subscope);
-                
+
                 // Açıklama metni
                 let description = subscopeData.name || subscope;
-                if (item.data?.fuel_name) description += ` - ${item.data.fuel_name}`;
-                else if (item.data?.facility_name) description += ` - ${item.data.facility_name}`;
-                else if (item.data?.device_name) description += ` - ${item.data.device_name}`;
-                else if (item.data?.name) description += ` - ${item.data.name}`;
-                
+
+                // Özel durumlar için ekleme yap
+                if (subscope === '4.1' || subscope === '4.2' || subscope === '4.3') {
+                    // Kapsam 4 için coefficient_set'i göster
+                    if (item.data?.coefficient_set) {
+                        description += ` - ${item.data.coefficient_set}`;
+                    } else if (item.data?.name) {
+                        description += ` - ${item.data.name}`;
+                    }
+                } else {
+                    // Diğer kapsamlar için mevcut mantık
+                    if (item.data?.fuel_name) description += ` - ${item.data.fuel_name}`;
+                    else if (item.data?.facility_name) description += ` - ${item.data.facility_name}`;
+                    else if (item.data?.device_name) description += ` - ${item.data.device_name}`;
+                    else if (item.data?.name) description += ` - ${item.data.name}`;
+                }
+
                 // Emisyon değerini hassas hesapla
                 const emissionValue = parseFloat(item.co2e) || 0;
                 scopeSubtotal += emissionValue;
-                
+
                 // Emisyon gösterimi - küçük değerler için özel formatlama
                 let emissionDisplay = formatEmissionValue(emissionValue);
-                
+
                 // Çok küçük değer uyarısı
                 if (emissionValue > 0 && emissionValue < 0.001) {
                     emissionDisplay = `<span style="color: #ff6b6b;" title="Çok küçük değer: ${emissionValue.toFixed(8)} tCO₂e">
                         ${emissionDisplay} *
                     </span>`;
                 }
-                
+
                 html += '<tr>';
-                html += `<td>${subscope}  ${description}</td>`;
+                html += `<td>${subscope} ${description}</td>`;
                 html += `<td>${item.date || '-'}</td>`;
                 html += `<td>${item.data?.coefficient_set || '-'}</td>`;
                 html += `<td style="text-align: right;">${formatted.value}</td>`;
