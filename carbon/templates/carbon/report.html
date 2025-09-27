@@ -1074,9 +1074,23 @@ function updateDataTables(data) {
 
                 // Açıklama metni
                 let description = subscopeData.name || subscope;
+/*
+                // Kapsam 1.4 için özel işlem - Kaçak Emisyonlar
+                if (subscope === '1.4') {
+                    const deviceName = item.data?.device_name || '';
+                    const gasName = item.data?.gas_name || '';
+                    
+                    if (deviceName && gasName) {
+                        description += ` - ${deviceName} (${gasName})`;
+                    } else if (deviceName) {
+                        description += ` - ${deviceName}`;
+                    } else if (gasName) {
+                        description += ` - ${gasName}`;
+                    }
+                } 
 
                 // Özel durumlar için ekleme yap
-                if (subscope === '4.1' || subscope === '4.2' || subscope === '4.3') {
+                else*/ if (subscope === '4.1' || subscope === '4.2' || subscope === '4.3') {
                     // Kapsam 4 için coefficient_set'i göster
                     if (item.data?.coefficient_set) {
                         description += ` - ${item.data.coefficient_set}`;
