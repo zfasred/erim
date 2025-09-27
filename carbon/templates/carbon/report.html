@@ -1099,7 +1099,7 @@ function updateDataTables(data) {
                 }
                 
                 html += '<tr>';
-                html += `<td>${description}</td>`;
+                html += `<td>${subscope}  ${description}</td>`;
                 html += `<td>${item.date || '-'}</td>`;
                 html += `<td>${item.data?.coefficient_set || '-'}</td>`;
                 html += `<td style="text-align: right;">${formatted.value}</td>`;
