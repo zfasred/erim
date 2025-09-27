@@ -118,6 +118,7 @@ class CarbonCoefficient(models.Model):
         ('EF_KG_CO2E_M3', 'Emisyon Faktörü (kgCO2e/m³)'),
         ('EF_KG_CO2_TON', 'Emisyon Faktörü (kgCO2/ton)'),
         ('EF_KG_CO2_M3', 'Emisyon Faktörü (kgCO2/m³)'),
+        ('EF_KG_CO2E_ODA', 'EF (kgCO2e/oda)'),
     ]
     
     scope = models.CharField(max_length=1, choices=SCOPE_CHOICES, verbose_name="Kapsam")
