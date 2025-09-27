@@ -434,9 +434,156 @@ def calculate_emission_for_report(scope, subscope, data, date):
                     return result
                 else:
                     return 0
+            else:
+                # Uçak ve Taşıt için normal hesaplama
+                yogunluk = 0
+                nkd = 0
+                ef_co2 = 0
+                ef_ch4 = 0
+                ef_n2o = 0
 
-        # Kapsam 4, 5, 6 için basit hesaplama
-        elif scope in [4, 5, 6]:
+                for coef in coefficients:
+                    # YOĞUNLUK BİRİM KONTROLÜ EKLEYELİM
+                    if coef.coefficient_type == 'YOGUNLUK_TON_LT':
+                        yogunluk = float(coef.value)  # ton/litre olarak
+                    elif coef.coefficient_type == 'YOGUNLUK_KG_LT':
+                        yogunluk = float(coef.value) / 1000  # kg/lt'yi ton/lt'ye çevir
+                    elif coef.coefficient_type == 'NKD':
+                        nkd = float(coef.value)
+                    elif coef.coefficient_type == 'EF_CO2':
+                        ef_co2 = float(coef.value)
+                    elif coef.coefficient_type == 'EF_CH4':
+                        ef_ch4 = float(coef.value)
+                    elif coef.coefficient_type == 'EF_N2O':
+                        ef_n2o = float(coef.value)
+
+                if yogunluk and nkd:
+                    if travel_type == 'flight':
+                        # Uçak için özel formül (yogunluk kg/lt'den ton/lt'ye çevrilmişti)
+                        # Ama formülde kg kullanılıyor, geri çevir
+                        yogunluk_kg = yogunluk * 1000 if yogunluk < 1 else yogunluk
+                        co2_ton = (consumption * ef_co2 * nkd * yogunluk_kg * 0.000000001) / 250 * 4
+                        ch4_ton = (consumption * ef_ch4 * nkd * yogunluk_kg * 0.000000001) / 250 * 4
+                        n2o_ton = (consumption * ef_n2o * nkd * yogunluk_kg * 0.000000001) / 250 * 4
+                    else:
+                        # Taşıt için formül (yogunluk ton/lt olarak)
+                        co2_ton = consumption * yogunluk * nkd * ef_co2 * 0.000001
+                        ch4_ton = consumption * yogunluk * nkd * ef_ch4 * 0.000001
+                        n2o_ton = consumption * yogunluk * nkd * ef_n2o * 0.000001
+
+                    co2e_total = co2_ton + (ch4_ton * 27.9) + (n2o_ton * 273)
+                    return co2e_total
+
+        # Kapsam 4.1 - Satın Alınan Mal ve Hizmetler
+        elif scope == 4 and subscope == '4.1':
+            amount = float(data.get('amount', 0))  # kg
+            material_type = data.get('material_type', '')  # Malzeme ID'si
+            coefficient_set = data.get('coefficient_set', '')
+            name = data.get('name', '')
+            
+            # Eğer coefficient_set yoksa, material_type'dan bulmayı dene
+            if not coefficient_set and material_type:
+                # material_type bir ID olabilir, onu katsayı ismine çevir
+                material_coef = CarbonCoefficient.objects.filter(
+                    id=material_type
+                ).first()
+                if material_coef:
+                    coefficient_set = material_coef.name
+            
+            if not coefficient_set:
+                return 0
+            
+            # Katsayıyı bul
+            ef_coef = CarbonCoefficient.objects.filter(
+                scope='4',
+                subscope='4.1',
+                name=coefficient_set,
+                coefficient_type='EF_KG_CO2_KG',
+                valid_from__lte=date
+            ).filter(
+                Q(valid_to__gte=date) | Q(valid_to__isnull=True)
+            ).first()
+            
+            if ef_coef:
+                ef = float(ef_coef.value)
+                result = amount * ef / 1000
+                return result
+                
+            return 0
+
+        # Kapsam 4.2 - Sermaye Malları
+        elif scope == 4 and subscope == '4.2':
+            amount = float(data.get('amount', 0))  # kg
+            coefficient_set = data.get('coefficient_set', '')
+            
+            if not coefficient_set:
+                return 0
+            
+            # İki tür katsayı olabilir: Materyal ve Proses
+            material_ef = 0
+            process_ef = 0
+            
+            coefficients = CarbonCoefficient.objects.filter(
+                scope='4',
+                subscope='4.2',
+                name=coefficient_set,
+                valid_from__lte=date
+            ).filter(
+                Q(valid_to__gte=date) | Q(valid_to__isnull=True)
+            )
+            
+            for coef in coefficients:
+                if coef.coefficient_type == 'EF_KG_CO2_KG':
+                    material_ef = float(coef.value)
+                elif coef.coefficient_type == 'EF_TCO2E_KG':
+                    process_ef = float(coef.value)
+            
+            # Toplam emisyon
+            material_emission = amount * material_ef / 1000 if material_ef else 0
+            process_emission = amount * process_ef / 1000 if process_ef else 0
+            
+            result = material_emission + process_emission
+            return result
+
+        # Kapsam 4.3 - Kullanılan Hizmetler  
+        elif scope == 4 and subscope == '4.3':
+            service_type = data.get('service_type', '')
+            consumption = float(data.get('consumption', 0))
+            coefficient_set = data.get('coefficient_set', '')
+            
+            if not coefficient_set or consumption == 0:
+                return 0
+            
+            # Servis tiplerine göre katsayı türü belirleme
+            coefficient_type_map = {
+                'water': 'EF_KG_CO2E_M3',
+                'wastewater': 'EF_KG_CO2E_M3',
+                'solid_waste': 'EF_KG_CO2_TON',
+                'electricity_loss': 'EF_TCO2_MWH',
+                'service': 'EF_KG_CO2_TL'  # TL bazlı hizmetler için
+            }
+            
+            coef_type = coefficient_type_map.get(service_type, 'EF_KG_CO2_KG')
+            
+            ef_coef = CarbonCoefficient.objects.filter(
+                scope='4',
+                subscope='4.3',
+                name=coefficient_set,
+                coefficient_type=coef_type,
+                valid_from__lte=date
+            ).filter(
+                Q(valid_to__gte=date) | Q(valid_to__isnull=True)
+            ).first()
+            
+            if ef_coef:
+                ef = float(ef_coef.value)
+                result = consumption * ef / 1000
+                return result
+            
+            return 0
+
+        # Kapsam 5, 6 için basit hesaplama
+        elif scope in [5, 6]:
             # Katsayı seti varsa kontrol et
             coefficient_set = data.get('coefficient_set')
             consumption = float(data.get('consumption', 0) or data.get('amount', 0) or data.get('distance', 0))
