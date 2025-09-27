@@ -114,34 +114,34 @@ def api_get_coefficient_names(request):
 @login_required
 def api_report_data(request):
     """Rapor verilerini getir ve HESAPLA"""
-    
+
     firm_id = request.GET.get('firm')
     start_date = request.GET.get('start_date')
     end_date = request.GET.get('end_date')
     
     if not all([firm_id, start_date, end_date]):
         return JsonResponse({'error': 'Eksik parametreler'}, status=400)
-    
+
     from django.utils import timezone
     start = timezone.make_aware(datetime.strptime(start_date, '%Y-%m-%d'))
     end = timezone.make_aware(datetime.strptime(end_date, '%Y-%m-%d'))
     end = end.replace(hour=23, minute=59, second=59)
-    
+
     # Verileri çek
     inputs = DynamicCarbonInput.objects.filter(
         firm_id=firm_id,
         datetime__gte=start,
         datetime__lte=end
     )
-    
+
     # Kapsam bazlı gruplama
     scope_totals = {}
     scope_details = {}
-    
+
     for inp in inputs:
         scope_key = f"scope_{inp.scope}"
         subscope_key = inp.subscope.code
-        
+
         # CO2 hesapla - RAPOR ANINDA
         co2e_value = calculate_emission_for_report(
             inp.scope, 
@@ -149,12 +149,37 @@ def api_report_data(request):
             inp.data,
             inp.datetime  # Tarih bazlı katsayı için
         )
-        
+
+        # Kapsam 1.4 için device_name ve gas_name birleştir
+        if inp.scope == 1 and inp.subscope.code == '1.4':
+            device_name = inp.data.get('device_name', '')
+            gas_name = inp.data.get('gas_name', '')
+            
+            # Açıklama için birleşik isim oluştur
+            if device_name and gas_name:
+                inp.data['coefficient_set'] = f"{device_name} ({gas_name})"
+            elif device_name:
+                inp.data['coefficient_set'] = device_name
+            elif gas_name:
+                inp.data['coefficient_set'] = gas_name
+
+        # 4.1 için material_type ID'den isim bulma
+        if inp.scope == 4 and inp.subscope.code == '4.1':
+            material_type = inp.data.get('material_type')
+            if material_type:
+                try:
+                    material_coef = CarbonCoefficient.objects.filter(id=material_type).first()
+                    if material_coef:
+                        # data'ya coefficient_set olarak malzeme ismini ekle
+                        inp.data['coefficient_set'] = material_coef.name
+                except:
+                    pass
+
         # Toplam hesapla
         if scope_key not in scope_totals:
             scope_totals[scope_key] = 0
             scope_details[scope_key] = {}
-        
+
         # Alt kapsam detayları
         if subscope_key not in scope_details[scope_key]:
             scope_details[scope_key][subscope_key] = {
@@ -162,17 +187,17 @@ def api_report_data(request):
                 'items': [],
                 'total': 0
             }
-        
+
         # Veriyi ekle
         scope_details[scope_key][subscope_key]['items'].append({
             'date': inp.datetime.strftime('%d.%m.%Y'),
             'data': inp.data,
             'co2e': co2e_value  # Hesaplanan değer
         })
-        
+
         scope_details[scope_key][subscope_key]['total'] += co2e_value
         scope_totals[scope_key] += co2e_value
-    
+
     # Genel toplam
     total_emission = sum(scope_totals.values())
     
