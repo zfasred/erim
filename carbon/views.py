@@ -599,12 +599,25 @@ def calculate_emission_for_report(scope, subscope, data, date):
             ).filter(
                 Q(valid_to__gte=date) | Q(valid_to__isnull=True)
             ).first()
-            
+
             if ef_coef:
                 ef = float(ef_coef.value)
-                result = consumption * ef / 1000
+                
+                # Birime göre hesaplama yap
+                if coef_type == 'EF_KG_CO2_TON':
+                    # kg CO2/ton -> direkt ton CO2 hesapla
+                    result = consumption * ef / 1000000  # ton'dan kg'a, sonra tCO2'ye
+                elif coef_type == 'EF_TCO2_MWH':
+                    # Zaten tCO2/MWh
+                    result = consumption * ef
+                elif coef_type in ['EF_KG_CO2E_M3', 'EF_KG_CO2_TL', 'EF_KG_CO2_KG']:
+                    # kg CO2e -> ton CO2e'ye çevir
+                    result = consumption * ef / 1000
+                else:
+                    result = consumption * ef / 1000
+                    
                 return result
-            
+
             return 0
 
         # Kapsam 5, 6 için basit hesaplama
