@@ -395,7 +395,10 @@ def calculate_emission_for_report(scope, subscope, data, date):
 
             # Kapsam 3.5 - İş Seyahatleri
             elif scope == 3 and subscope == '3.5':
-                consumption = float(data.get('consumption', 0))
+                try:
+                    consumption = float(str(data.get('consumption', 0)).strip())
+                except:
+                    consumption = 0
                 coefficient_set = data.get('coefficient_set')  # Şehir adı: Tokyo, Dubai vs.
                 travel_type = data.get('travel_type', '')  # flight, vehicle, hotel
 
