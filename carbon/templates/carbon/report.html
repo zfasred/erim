@@ -1035,15 +1035,10 @@ function formatEmissionValue(value) {
         return numValue.toFixed(3);
     }
     
-    // 1 - 100 arası için 2 basamak
-    if (numValue < 100) {
-        return numValue.toFixed(2);
-    }
-    
-    // Büyük sayılar için binlik ayraç ile 2 basamak
+    // Büyük sayılar için binlik ayraç ile 3 basamak
     return numValue.toLocaleString('tr-TR', { 
-        minimumFractionDigits: 2, 
-        maximumFractionDigits: 2 
+        minimumFractionDigits: 3, 
+        maximumFractionDigits: 6
     });
 }
 
