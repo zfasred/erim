@@ -233,7 +233,7 @@ def calculate_emission_for_report(scope, subscope, data, date):
                 ch4_ton = consumption * yogunluk * nkd * ef_ch4 * 0.000000001  # 10^-9
                 n2o_ton = consumption * yogunluk * nkd * ef_n2o * 0.000000001  # 10^-9
                 co2e_total = co2_ton + (ch4_ton * 27.9) + (n2o_ton * 273)
-                
+
                 return co2e_total
             else:
                 return 0
