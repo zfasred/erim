@@ -132,6 +132,7 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')  # collectstatic için
 # Development için ek static dizinleri
 STATICFILES_DIRS = [
     os.path.join(BASE_DIR, 'static'),
+    BASE_DIR / "static",
 ]
 
 # WhiteNoise ayarları (Production için)
