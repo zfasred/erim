@@ -1,5 +1,9 @@
 {% extends 'base.html' %}
 {% load static %}
+{% block body_class %}login-bg{% endblock %}
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/backgrounds.css' %}">
+{% endblock %}
 
 {% block title %}Ana Portal - Ekonaz{% endblock %}
 
@@ -25,7 +29,7 @@
     .main-content h1 { margin-bottom: 30px; color: #2c3e50; }
     .module-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 30px; }
     /* Modül Kutucukları */
-    .module-box { background-color: white; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); text-align: center; padding: 20px; text-decoration: none; color: #333; transition: transform 0.3s, box-shadow 0.3s; }
+    .module-box { background-color: darkslategrey; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); text-align: center; padding: 20px; text-decoration: none; color: #333; transition: transform 0.3s, box-shadow 0.3s; }
     .module-box:hover { transform: translateY(-5px); box-shadow: 0 8px 16px rgba(0,0,0,0.2); }
     .module-box .icon { font-size: 48px; margin-bottom: 15px; }
     .module-box h3 { font-size: 18px; }
