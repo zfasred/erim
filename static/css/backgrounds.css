@@ -10,16 +10,30 @@
 
 /* Dashboard sayfası */
 .dashboard-bg {
-    background: linear-gradient(rgba(255,255,255,0.9), rgba(255,255,255,0.9)),
+    background: linear-gradient(rgba(255,255,255,0.05), rgba(255,255,255,0.05)),
                 url('/static/images/backgrounds/dashboard-bg.jpg');
     background-size: cover;
     background-position: center;
+    background-attachment: fixed;
+    min-height: 100vh;
+}
+
+/* Dashboard sayfası */
+.firm-bg {
+    background: linear-gradient(rgba(155,155,155,0.1), rgba(55,55,55,0.1),
+                url('/static/images/backgrounds/firm-bg.jpg'));
+    background-size: cover;
+    background-position: center;
+    background-attachment: fixed;
+    min-height: 100vh;
 }
 
 /* Report sayfası */
 .report-bg {
-    background: linear-gradient(rgba(255,255,255,0.95), rgba(255,255,255,0.95)),
+    background: linear-gradient(rgba(255,255,255,0.0), rgba(255,255,255,0.0)),
                 url('/static/images/backgrounds/report-bg.jpg');
     background-size: cover;
     background-position: center;
+    background-attachment: fixed;
+    min-height: 100vh;
 }
