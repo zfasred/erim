@@ -26,12 +26,43 @@
 {% block styles %}
 <style>
     /* Ana İçerik Alanı */
-    .main-content h1 { margin-bottom: 30px; color: #2c3e50; }
-    .module-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 30px; }
-    /* Modül Kutucukları */
-    .module-box { background-color: darkslategrey; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); text-align: center; padding: 20px; text-decoration: none; color: #333; transition: transform 0.3s, box-shadow 0.3s; }
-    .module-box:hover { transform: translateY(-5px); box-shadow: 0 8px 16px rgba(0,0,0,0.2); }
+    .main-content h1 { 
+        margin-bottom: 30px; 
+        color: #ffffff;  /* Beyaz yap */
+        font-weight: 700;  /* Kalın yap */
+        font-size: 3.5rem;  /* Büyüt */
+        text-shadow: 2px 2px 4px rgba(255,255,255,0.8);  /* Gölge ekle */
+        background: rgba(0,0,0,0.5);  /* Arka plan ekle */
+        padding: 15px 25px;
+        border-radius: 8px;
+        display: inline-block;
+    }
+    
+    /* Modül kutuları için arka plan ekleyelim ki okunabilir olsun */
+    .module-container { 
+        display: grid; 
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); 
+        gap: 30px; 
+    }
+    
+    .module-box { 
+        background-color: rgba(52, 73, 94, 0.75);  /* Opaklık ekledik */
+        border-radius: 8px; 
+        box-shadow: 0 4px 8px rgba(0,0,0,0.3); 
+        text-align: center; 
+        padding: 20px; 
+        text-decoration: none; 
+        color: #fff;  /* Beyaz yap */
+        transition: transform 0.3s, box-shadow 0.3s; 
+    }
+    
+    .module-box:hover { 
+        transform: translateY(-5px); 
+        box-shadow: 0 8px 16px rgba(0,0,0,0.5); 
+        background-color: rgba(52, 73, 94, 1);  /* Hover'da tamamen opak */
+    }
+    
     .module-box .icon { font-size: 48px; margin-bottom: 15px; }
-    .module-box h3 { font-size: 18px; }
+    .module-box h3 { font-size: 18px; color: #fff; }
 </style>
 {% endblock %}
