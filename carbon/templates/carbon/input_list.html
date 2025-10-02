@@ -1,13 +1,11 @@
 {% extends 'base.html' %}
-
-{% block title %}Karbon Girdi Listesi - Ekonaz Portal{% endblock %}
-
+{% load static %}
 {% block body_class %}input-list-bg{% endblock %}
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'css/backgrounds.css' %}">
 {% endblock %}
 
-{% block content %}
+{% block title %}Karbon Girdi Listesi - Ekonaz Portal{% endblock %}
     <h1>Karbon Girdi Verileri</h1>
 
     <form method="get">
