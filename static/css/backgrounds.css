@@ -8,6 +8,43 @@
     min-height: 100vh;
 }
 
+/* GENEL YAZI GÖRÜNÜRLÜĞÜ AYARLARI - TÜM SAYFALAR İÇİN */
+/* Ana içerik alanındaki tüm elementlere yarı saydam arka plan ve gölge ekle */
+body[class*="-bg"] .main-content {
+    /* Yazıların olduğu alanı daha görünür yap */
+}
+
+body[class*="-bg"] .main-content h1,
+body[class*="-bg"] .main-content h2,
+body[class*="-bg"] .main-content h3 {
+    background: rgba(255, 255, 255, 0.85) !important;
+    padding: 15px 20px !important;
+    border-radius: 8px !important;
+    color: #2c3e50 !important;
+    text-shadow: 1px 1px 2px rgba(255, 255, 255, 0.8) !important;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1) !important;
+    display: inline-block !important;
+}
+
+body[class*="-bg"] .main-content table,
+body[class*="-bg"] .main-content form,
+body[class*="-bg"] .main-content ul,
+body[class*="-bg"] .main-content .confirmation-box {
+    background: rgba(255, 255, 255, 0.9) !important;
+    padding: 20px !important;
+    border-radius: 8px !important;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15) !important;
+}
+
+body[class*="-bg"] .main-content p,
+body[class*="-bg"] .main-content label,
+body[class*="-bg"] .main-content td,
+body[class*="-bg"] .main-content th,
+body[class*="-bg"] .main-content li,
+body[class*="-bg"] .main-content a {
+    text-shadow: 1px 1px 2px rgba(255, 255, 255, 0.5);
+}
+
 /* Dashboard/Portal sayfası */
 .dashboard-bg {
     background: linear-gradient(rgba(255,255,255,0.05), rgba(255,255,255,0.05)),
