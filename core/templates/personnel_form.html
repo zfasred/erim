@@ -1,13 +1,11 @@
 {% extends 'base.html' %}
-
-{% block title %}Personel Formu - Ekonaz Portal{% endblock %}
-
+{% load static %}
 {% block body_class %}personnel-form-bg{% endblock %}
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'css/backgrounds.css' %}">
 {% endblock %}
 
-{% block styles %}
+{% block title %}Personel Formu - Ekonaz Portal{% endblock %}
     {{ block.super }}
     <style>
         form { max-width: 800px; } /* Formu biraz daha genişletelim */
