@@ -2,6 +2,11 @@
 
 {% block title %}{{ list_title }} - Ekonaz Portal{% endblock %}
 
+{% block body_class %}personnel-list-bg{% endblock %}
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/backgrounds.css' %}">
+{% endblock %}
+
 {% block styles %}
 <style>
     a { text-decoration: none; }
