@@ -6,6 +6,8 @@
 {% endblock %}
 
 {% block title %}Karbon Yönetimi{% endblock %}
+
+{% block content %}
 <h1>Karbon Yönetim</h1>
 
 <!-- Filtreleme ve İşlem Alanı -->
@@ -35,34 +37,27 @@
             </div>
             
             <div style="flex: 1; min-width: 150px;">
-                <label for="filter-valid-from">Geçerlilik Başlangıcı:</label>
-                <input type="date" name="valid_from" id="filter-valid-from" 
-                    value="{{ selected_valid_from }}" 
-                    style="width: 100%; padding: 8px;">
+                <label for="valid-from">Geçerlilik Başlangıcı:</label>
+                <input type="date" name="valid_from" id="valid-from" value="{{ selected_valid_from }}" style="width: 100%; padding: 8px;">
             </div>
-
+            
             <div style="flex: 1; min-width: 150px;">
-                <label for="filter-valid-to">Geçerlilik Bitişi:</label>
-                <input type="date" name="valid_to" id="filter-valid-to" 
-                    value="{{ selected_valid_to }}" 
-                    style="width: 100%; padding: 8px;">
+                <label for="valid-to">Geçerlilik Bitişi:</label>
+                <input type="date" name="valid_to" id="valid-to" value="{{ selected_valid_to }}" style="width: 100%; padding: 8px;">
             </div>
             
             <div style="flex: 0;">
                 <button type="submit" style="padding: 8px 20px; background-color: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;">
                     Filtrele
                 </button>
-                <a href="{% url 'carbon:management-list' %}" style="padding: 8px 20px; background-color: #6c757d; color: white; text-decoration: none; border-radius: 4px; display: inline-block;">
-                    Temizle
-                </a>
             </div>
         </div>
     </form>
 </div>
 
-<!-- Yeni Katsayı Ekleme Butonu -->
+<!-- Yeni Katsayı Ekle Butonu -->
 <div style="margin-bottom: 20px;">
-    <a href="{% url 'carbon:coefficient-create' %}" style="padding: 10px 20px; background-color: #28a745; color: white; text-decoration: none; border-radius: 4px; display: inline-block; font-weight: bold;">
+    <a href="{% url 'carbon:coefficient-create' %}" style="padding: 10px 20px; background-color: #28a745; color: white; text-decoration: none; border-radius: 4px; display: inline-block;">
         + Yeni Katsayı Ekle
     </a>
 </div>
@@ -146,41 +141,13 @@
 {% endif %}
 
 <script>
-// Alt kapsam verilerini tanımla
-const altBasliklar = {
-    '1': [
-        {value: '1.1', text: 'Kapsam 1.1'},
-        {value: '1.2', text: 'Kapsam 1.2'},
-        {value: '1.3', text: 'Kapsam 1.3'},
-        {value: '1.4', text: 'Kapsam 1.4'},
-        {value: '1.5', text: 'Kapsam 1.5'}
-    ],
-    '2': [
-        {value: '2.1', text: 'Kapsam 2.1'}
-    ],
-    '3': [
-        {value: '3.1', text: 'Kapsam 3.1'},
-        {value: '3.2', text: 'Kapsam 3.2'},
-        {value: '3.3', text: 'Kapsam 3.3'},
-        {value: '3.4', text: 'Kapsam 3.4'},
-        {value: '3.5', text: 'Kapsam 3.5'}
-    ],
-    '4': [
-        {value: '4.1', text: 'Kapsam 4.1'},
-        {value: '4.2', text: 'Kapsam 4.2'},
-        {value: '4.3', text: 'Kapsam 4.3'}
-    ]
-};
-
 // Kapsam değiştiğinde alt kapsamları güncelle
 document.getElementById('kapsam-select').addEventListener('change', function() {
     const altBaslikSelect = document.getElementById('alt-baslik-select');
     const selectedKapsam = this.value;
     
-    // Mevcut seçimi sakla
     const currentValue = altBaslikSelect.value;
     
-    // Önce tüm seçenekleri göster
     const allOptions = altBaslikSelect.querySelectorAll('option');
     allOptions.forEach(option => {
         if (option.value === '') {
@@ -192,13 +159,11 @@ document.getElementById('kapsam-select').addEventListener('change', function() {
         }
     });
     
-    // Seçili değer uygun değilse sıfırla
     if (currentValue && selectedKapsam && !currentValue.startsWith(selectedKapsam + '.')) {
         altBaslikSelect.value = '';
     }
 });
 
-// Sayfa yüklendiğinde filtreyi uygula
 window.addEventListener('DOMContentLoaded', function() {
     const kapsamSelect = document.getElementById('kapsam-select');
     if (kapsamSelect.value) {
