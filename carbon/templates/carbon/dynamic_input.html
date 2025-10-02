@@ -1,6 +1,12 @@
 <!-- carbon/templates/carbon/dynamic_input.html -->
 
 {% extends 'base.html' %}
+
+{% block body_class %}dynamic-input-bg{% endblock %}
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/backgrounds.css' %}">
+{% endblock %}
+
 {% load static %}
 {% block extra_head %}
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">

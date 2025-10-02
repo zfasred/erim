@@ -3,6 +3,11 @@
 
 {% block title %}Karbon Raporları{% endblock %}
 
+{% block body_class %}report-list-bg{% endblock %}
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/backgrounds.css' %}">
+{% endblock %}
+
 {% block content %}
 <div class="container">
     <h1>📊 {{ list_title }}</h1>
