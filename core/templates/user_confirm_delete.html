@@ -1,11 +1,11 @@
 {% extends 'base.html' %}
-
-{% block title %}Kullanıcı Silme Onayı{% endblock %}
-
+{% load static %}
 {% block body_class %}user-confirm-delete-bg{% endblock %}
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'css/backgrounds.css' %}">
 {% endblock %}
+
+{% block title %}Kullanıcı Silme Onayı{% endblock %}
 
 {% block content %}
     <div class="confirmation-box">
