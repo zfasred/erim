@@ -6,80 +6,16 @@
 {% endblock %}
 
 {% block title %}Karbon Katsayı Listesi{% endblock %}
-<h1>Karbon Katsayıları Yönetimi</h1>
 
-<!-- Filtreleme Formu -->
-<div style="background: #f5f5f5; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
-    <form method="get" action="{% url 'carbon:coefficient-list' %}">
-        <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end;">
-            <div style="flex: 1; min-width: 150px;">
-                <label for="filter-scope">Kapsam:</label>
-                <select name="scope" id="filter-scope" style="width: 100%; padding: 8px;">
-                    <option value="">-- Tümü --</option>
-                    {% for code, label in scope_choices %}
-                        <option value="{{ code }}" {% if selected_scope == code %}selected{% endif %}>{{ label }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            
-            <div style="flex: 1; min-width: 150px;">
-                <label for="filter-subscope">Alt Kapsam:</label>
-                <select name="subscope" id="filter-subscope" style="width: 100%; padding: 8px;">
-                    <option value="">-- Tümü --</option>
-                    {% for code, label in subscope_choices %}
-                        <option value="{{ code }}" {% if selected_subscope == code %}selected{% endif %}>{{ label }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            
-            <div style="flex: 1; min-width: 200px;">
-                <label for="filter-coefficient-type">Katsayı Türü:</label>
-                <select name="coefficient_type" id="filter-coefficient-type" style="width: 100%; padding: 8px;">
-                    <option value="">-- Tümü --</option>
-                    {% for code, label in coefficient_type_choices %}
-                        <option value="{{ code }}" {% if selected_coefficient_type == code %}selected{% endif %}>{{ label }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div style="flex: 1; min-width: 150px;">
-                <label for="filter-valid-from">Başlangıç Tarihi:</label>
-                <input type="date" name="valid_from" id="filter-valid-from" 
-                    value="{{ selected_valid_from }}" 
-                    style="width: 100%; padding: 8px;">
-            </div>
+{% block content %}
+<h1>Karbon Katsayı Listesi</h1>
 
-            <div style="flex: 1; min-width: 150px;">
-                <label for="filter-valid-to">Bitiş Tarihi:</label>
-                <input type="date" name="valid_to" id="filter-valid-to" 
-                    value="{{ selected_valid_to }}" 
-                    style="width: 100%; padding: 8px;">
-            </div>
-            <div style="flex: 1; min-width: 150px;">
-                <label for="filter-name">İsim:</label>
-                <input type="text" name="name" id="filter-name" value="{{ name_search }}" 
-                       placeholder="Ara..." style="width: 100%; padding: 8px;">
-            </div>
-            
-            <div style="flex: 0;">
-                <button type="submit" style="padding: 8px 20px; background-color: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;">
-                    Filtrele
-                </button>
-                <a href="{% url 'carbon:coefficient-list' %}" style="padding: 8px 20px; background-color: #6c757d; color: white; text-decoration: none; border-radius: 4px; display: inline-block;">
-                    Temizle
-                </a>
-            </div>
-        </div>
-    </form>
-</div>
-
-<!-- Yeni Katsayı Ekleme Butonu -->
 <div style="margin-bottom: 20px;">
     <a href="{% url 'carbon:coefficient-create' %}" style="padding: 10px 20px; background-color: #28a745; color: white; text-decoration: none; border-radius: 4px; display: inline-block;">
         + Yeni Katsayı Ekle
     </a>
 </div>
 
-<!-- Katsayı Listesi Tablosu -->
 <div style="overflow-x: auto;">
     <table style="width: 100%; border-collapse: collapse;">
         <thead>
@@ -138,43 +74,9 @@
     </table>
 </div>
 
-<!-- Sayfa altı bilgilendirme -->
 <div style="margin-top: 20px; padding: 15px; background-color: #e9ecef; border-radius: 5px;">
     <p style="margin: 0; color: #6c757d;">
         <strong>Toplam {{ coefficients|length }} katsayı listeleniyor.</strong>
-        {% if selected_scope or selected_subscope or selected_coefficient_type or name_search %}
-            (Filtre uygulandı)
-        {% endif %}
     </p>
 </div>
-
-<script>
-// Kapsam değiştiğinde alt kapsamları filtrele
-document.getElementById('filter-scope').addEventListener('change', function() {
-    const scope = this.value;
-    const subscopeSelect = document.getElementById('filter-subscope');
-    const allOptions = subscopeSelect.querySelectorAll('option');
-    
-    allOptions.forEach(option => {
-        if (option.value === '' || !scope || option.value.startsWith(scope + '.')) {
-            option.style.display = '';
-        } else {
-            option.style.display = 'none';
-        }
-    });
-    
-    // Seçili alt kapsam uygun değilse sıfırla
-    if (subscopeSelect.value && !subscopeSelect.value.startsWith(scope + '.')) {
-        subscopeSelect.value = '';
-    }
-});
-
-// Sayfa yüklendiğinde filtreyi uygula
-window.addEventListener('DOMContentLoaded', function() {
-    const scopeSelect = document.getElementById('filter-scope');
-    if (scopeSelect.value) {
-        scopeSelect.dispatchEvent(new Event('change'));
-    }
-});
-</script>
 {% endblock %}
