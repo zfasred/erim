@@ -6,9 +6,11 @@
 {% endblock %}
 
 {% block title %}Personel Formu - Ekonaz Portal{% endblock %}
+
+{% block styles %}
     {{ block.super }}
     <style>
-        form { max-width: 800px; } /* Formu biraz daha genişletelim */
+        form { max-width: 800px; }
         .grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
@@ -17,7 +19,7 @@
         .grid-full-width {
             grid-column: 1 / -1;
         }
-        form ul { list-style-type: none; padding-left: 0; } /* Radyo buton listesinin girintisini kaldır */
+        form ul { list-style-type: none; padding-left: 0; }
     </style>
 {% endblock %}
 
@@ -53,7 +55,6 @@
     {{ block.super }}
     <script>
         $(document).ready(function() {
-            // 'firm' alanını Select2'ye dönüştür
             $('#id_firm').select2({
                 placeholder: "Firma seçin veya yazarak arayın",
                 allowClear: true
